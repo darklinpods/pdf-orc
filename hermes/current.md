@@ -4,11 +4,11 @@
 
 ## 阶段
 
-v0.1（MVP）施工中：脚手架与文档核心已完成，进入渲染边界。
+v0.1（MVP）施工中：脚手架、文档核心、渲染边界已完成，进入阅读视图。
 
 ## 当前分支
 
-`main`（首次提交 `9272e12`）
+`main`（最近提交 `a533d80`）
 
 ## 当前状态
 
@@ -20,10 +20,13 @@ v0.1（MVP）施工中：脚手架与文档核心已完成，进入渲染边界�
   - `history.ts`：撤销/重做栈（上限 100，可配；旋转命令支持手势合并）。
   - `sources.ts`：导入负载构建（importCommand）。
   - `document.ts`：选择器与工厂。
-- 关键设计修正（测试驱动发现）：
-  1. reorder 的逆操作改为 `setOrder`（分散 from 无法用单个 reorder 还原）。
-  2. mergeSources/insert 必须推进 nextPageId（否则 id 重用冲突）。
-  3. sources 是无序注册表，顺序不构成文档语义。
+- 渲染边界（`src/render/`）：
+  - `pdfjs.ts`：worker 单例（`?worker` 独立 chunk）+ 源注册表（惰性打开/关闭，经 loadingTask.destroy 释放）。
+  - `renderPage.ts`：`renderPageToCanvas`（AbortSignal 取消；rotation 叠加 page.rotate 保留源固有旋转）。
+  - `pageScale.ts`：fitScale 纯函数（独立零 DOM，可单测）。
+  - `thumbnailCache.ts`：LRU（上限 500）+ 缓存键（向上取整到百位归桶）。
+  - `PageRenderer.tsx`：单页渲染组件（thumbnail 走 LRU 位图缓存 / full 直渲，异步 + 取消）。
+- pdf.js v6 API 差异已确认并落地：`getViewport` 的 rotation 参数会覆盖页面 /Rotate（须叠加 `page.rotate`）；`PDFDocumentProxy` 无 `destroy()`（走 `loadingTask.destroy()`）。
 
 ## 已确认决策（2026-08-19）
 
@@ -37,25 +40,25 @@ v0.1（MVP）施工中：脚手架与文档核心已完成，进入渲染边界�
 
 ## 自动验证
 
-- `npm run test`：2 个测试文件、28 个测试通过（命令与逆操作、reorder 边界、撤销/重做、合并语义、不可变性）。
-- `npm run build`：通过（dist 产物 190KB JS / 5.5KB CSS）。
+- `npm run test`：4 个测试文件、39 个测试通过（命令与逆操作、reorder 边界、撤销/重做、合并语义、不可变性、LRU、fitScale）。
+- `npm run build`：通过（pdf.js worker 独立 chunk 1.17MB，主包 619KB，已过 ?worker 打包验证）。
 - `npm run lint`：通过。
 - `npx tsc -b`：通过。
 - `git diff --check`：通过。
 
 ## 已知未完成验证
 
-- pdfjs-dist v6 的 worker 初始化与 v4/v5 配置差异，需在渲染边界确认。
-- 真实案卷扫描件（含 100+ 页）的 pdf.js 渲染 + pdf-lib 导出兼容性 spike。
+- pdf.js 在真实浏览器中渲染真实案卷扫描件（含 100+ 页）的 smoke 测试与内存峰值（需真实 PDF + 浏览器手工验证）。
+- 真实案卷扫描件的 pdf-lib 导出兼容性 spike（ADR 0002）。
 - 阅读视图、管理模式、导出均未实现。
+- 主包 619KB：本地工具可接受，后续可用动态 import 按需加载 pdf.js 优化（可选）。
 
 ## 下一步（按顺序）
 
-1. 渲染边界：pdf.js worker 单例、PageRenderer、缩略图 LRU 缓存。
-2. 阅读视图：缩略图栏 + 大图 + 缩放/跳页。
-3. 管理模式：dnd-kit 排序、多选、hover 操作、工具栏。
-4. 导出边界：exporter + WYSIWYG 验证。
-5. 真实扫描件 spike（渲染兼容性 + 内存峰值 + 导出体积）。
+1. 阅读视图：缩略图栏 + 大图 + 缩放/跳页（消费 PageRenderer 与 pdfSourceManager）。
+2. 管理模式：dnd-kit 排序、多选、hover 操作、工具栏。
+3. 导出边界：exporter + WYSIWYG 验证。
+4. 真实扫描件 spike（渲染兼容性 + 内存峰值 + 导出体积）。
 
 ## 关注点
 
