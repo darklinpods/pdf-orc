@@ -32,10 +32,10 @@
 
 ### 应用外壳与视图
 
-- `src/App.tsx`：模式切换（阅读/管理）与全局状态接线。
-- `src/views/ReaderView.tsx`：左侧缩略图栏 + 右侧大图查看。
-- `src/views/ManagerView.tsx`：网格 + 多选 + dnd-kit 排序 + hover 操作 + 工具栏。
-- `src/components/`：Toolbar、PageThumb、ConfirmDialog 等。
+- `src/App.tsx`：模式切换（阅读/页面管理）与全局状态接线。
+- `src/views/ReaderView.tsx`：左侧缩略图栏 + 右侧大图查看（缩放/翻页）。
+- `src/views/ManagerView.tsx`：大缩略图网格 + 多选（单击/Cmd/Shift）+ dnd-kit 排序 + hover 旋转/删除 + 左侧分组面板 + 工具栏。
+- `src/components/`：LazyMount、GroupPanel、Toolbar 等。
 
 ### 文档核心（纯逻辑，零 DOM 依赖）
 
@@ -43,7 +43,8 @@
 - `src/core/document.ts`：PageList reducer 与派生选择器。
 - `src/core/commands.ts`：reorder/rotate/delete/insert/merge/relabel 及逆操作。
 - `src/core/history.ts`：撤销/重做栈（上限、连续命令合并）。
-- `src/core/sources.ts`：源 PDF 注册、惰性加载与释放。
+- `src/core/sources.ts`：导入负载构建（importCommand）。
+- `src/core/labels.ts`：分组纯函数（relabelPagesCommand、collectGroups、groupColor，标签派生模型见 ADR 0008）。
 
 ### 渲染边界
 
@@ -65,6 +66,7 @@ UI 状态（独立，不进撤销栈）: mode / currentPage / selection / zoom /
 
 - 文档状态与 UI 状态严格分离；UI 状态不进入撤销栈。
 - 命令必须是纯数据、可逆；连续同类命令（如连续旋转 3 次）允许合并为一条历史。
+- 分组（ADR 0008）：`PageRef.label` 存组名；组列表由页面 label 去重派生，颜色由组名哈希到调色板；分组/改名/删除复用 `relabel` 命令。
 
 ## 渲染策略（按 100+ 页单份、数百页合并设定内存预算）
 

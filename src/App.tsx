@@ -1,10 +1,14 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useDocumentStore } from './store/useDocumentStore';
 import { ReaderView } from './views/ReaderView';
+import { ManagerView } from './views/ManagerView';
+
+type Mode = 'reader' | 'manager';
 
 export default function App() {
   const store = useDocumentStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<Mode>('manager');
   const pageCount = store.document.pages.length;
 
   const onPickFiles = (files: FileList | null) => {
@@ -17,6 +21,17 @@ export default function App() {
       <header className="flex items-center gap-3 border-b border-neutral-300 bg-white px-4 py-2">
         <h1 className="text-lg font-semibold">pdf-orc</h1>
         <span className="text-sm text-neutral-400">PDF 案卷整理</span>
+
+        {/* 视图切换 */}
+        <nav className="ml-4 flex rounded-lg border border-neutral-300 p-0.5">
+          <ModeButton active={mode === 'manager'} onClick={() => setMode('manager')}>
+            页面管理
+          </ModeButton>
+          <ModeButton active={mode === 'reader'} onClick={() => setMode('reader')}>
+            阅读
+          </ModeButton>
+        </nav>
+
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm tabular-nums text-neutral-500">
             {pageCount > 0 ? `${pageCount} 页` : '未导入'}
@@ -71,7 +86,7 @@ export default function App() {
           <div className="flex h-full flex-col items-center justify-center gap-4 text-neutral-500">
             <p className="text-lg">导入一份或多份 PDF 开始整理案卷</p>
             <p className="text-sm text-neutral-400">
-              支持多源合并 · 拖动排序 · 旋转 / 删除 / 插入 · 导出
+              支持多源合并 · 页面管理（排序/旋转/删除/分组）· 阅读 · 导出
             </p>
             <button
               type="button"
@@ -81,10 +96,34 @@ export default function App() {
               选择 PDF 文件
             </button>
           </div>
-        ) : (
+        ) : mode === 'reader' ? (
           <ReaderView document={store.document} />
+        ) : (
+          <ManagerView document={store.document} dispatch={store.dispatch} />
         )}
       </div>
     </main>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md px-3 py-1 text-sm transition ${
+        active ? 'bg-blue-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+      }`}
+    >
+      {children}
+    </button>
   );
 }

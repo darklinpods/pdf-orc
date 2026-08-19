@@ -4,6 +4,8 @@ export interface LazyMountProps {
   children: ReactNode;
   /** 预渲染边距：进入视口前多提前 rootMargin 距离即挂载。 */
   rootMargin?: string;
+  /** 透传到外层 div（用于固定占位高度，保持网格/列表布局稳定）。 */
+  className?: string;
 }
 
 /**
@@ -11,7 +13,7 @@ export interface LazyMountProps {
  * 一旦挂载不再卸载，避免滚动回看时的重复渲染抖动。
  * 配合 PageRenderer 的 thumbnail 位图缓存，把「初始只渲染可见项」的诉求落实。
  */
-export function LazyMount({ children, rootMargin = '300px' }: LazyMountProps) {
+export function LazyMount({ children, rootMargin = '300px', className }: LazyMountProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -35,5 +37,5 @@ export function LazyMount({ children, rootMargin = '300px' }: LazyMountProps) {
     return () => observer.disconnect();
   }, [rootMargin]);
 
-  return <div ref={ref}>{mounted ? children : null}</div>;
+  return <div ref={ref} className={className}>{mounted ? children : null}</div>;
 }

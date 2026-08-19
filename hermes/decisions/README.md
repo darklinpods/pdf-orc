@@ -20,3 +20,4 @@
 - [0005-command-history-undo-redo.md](./0005-command-history-undo-redo.md)
 - [0006-dnd-kit-for-sorting.md](./0006-dnd-kit-for-sorting.md)
 - [0007-large-file-memory-budget.md](./0007-large-file-memory-budget.md)
+- [0008-label-derived-groups.md](./0008-label-derived-groups.md)
