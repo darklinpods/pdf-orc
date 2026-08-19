@@ -2,12 +2,12 @@
 
 ## 技术基线
 
-- React 19 + TypeScript 5（strict）
-- Vite + Tailwind CSS
-- pdf.js（Mozilla）：页面与缩略图渲染（Web Worker）
-- pdf-lib：导出与页面操作（复制、重排、旋转、合并）
-- @dnd-kit/core + @dnd-kit/sortable：排序与多选拖动
-- Vitest：纯逻辑测试
+- React 19.2 + TypeScript 6.0（strict）
+- Vite 8.2 + Tailwind CSS 4.3
+- pdf.js（pdfjs-dist 6.2）：页面与缩略图渲染（Web Worker）
+- pdf-lib 1.17.1：导出与页面操作（复制、重排、旋转、合并）
+- @dnd-kit/core 6.3 + @dnd-kit/sortable 10：排序与多选拖动
+- Vitest 4.1：纯逻辑测试
 - 无后端、无数据库、无服务端存储
 - 运行环境基线：macOS，内存 16GB 起步（更低内存设备不在考虑范围）
 
