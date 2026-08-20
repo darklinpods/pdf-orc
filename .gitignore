@@ -6,3 +6,8 @@ node_modules/.tmp
 
 # 真实扫描件样本（本地验证用，不提交）
 samples/
+
+# CamScanner 分享下载产物与临时浏览器 profile（含案卷数据，不提交）
+cs-inbox/
+cs-share/
+.cs-chrome-profile/
