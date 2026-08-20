@@ -1,9 +1,15 @@
-import { useCallback, useState } from 'react';
-import { emptyDocument, type DocumentState } from '../core/types';
+import { useCallback, useRef, useState } from 'react';
+import { emptyDocument, type DocumentState, type PageRef } from '../core/types';
 import type { Command } from '../core/commands';
 import { createHistory, dispatch, redo, undo } from '../core/history';
 import { importCommand } from '../core/sources';
 import { pdfSourceManager } from '../render/pdfjs';
+import { renderPageToCanvas } from '../render/renderPage';
+import {
+  canvasToSinglePagePdf,
+  compositeCanvases,
+  type CombineOptions,
+} from '../combine/combinePages';
 
 let sourceSeq = 0;
 function nextSourceId(name: string): string {
@@ -17,6 +23,7 @@ export interface DocumentStore {
   canUndo: boolean;
   canRedo: boolean;
   importing: boolean;
+  combining: boolean;
   importError: string | null;
   dispatch: (command: Command, mergeKey?: string | null) => void;
   undo: () => void;
@@ -24,6 +31,8 @@ export interface DocumentStore {
   importFiles: (files: File[]) => Promise<void>;
   /** 从内存字节导入一份 PDF（如桥接服务下载的分享文档）。 */
   importPdf: (name: string, buffer: ArrayBuffer) => Promise<void>;
+  /** 把两页拼合为一页（是否删原页由 options.removeOriginals 决定）。 */
+  combinePages: (pageIds: string[], options: CombineOptions) => Promise<void>;
 }
 
 /**
@@ -36,7 +45,11 @@ export function useDocumentStore(): DocumentStore {
     history: createHistory(),
   }));
   const [importing, setImporting] = useState(false);
+  const [combining, setCombining] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const docRef = useRef(store.document);
+  docRef.current = store.document;
+  const combineSeq = useRef(0);
 
   const dispatchCmd = useCallback((command: Command, mergeKey: string | null = null) => {
     setStore((s) => {
@@ -99,16 +112,85 @@ export function useDocumentStore(): DocumentStore {
     [importOne],
   );
 
+  const combinePages = useCallback(
+    async (pageIds: string[], options: CombineOptions) => {
+      const doc = docRef.current;
+      const targets = doc.pages.filter((p) => pageIds.includes(p.id));
+      if (targets.length !== 2) {
+        setImportError('拼合需要恰好选中 2 页');
+        return;
+      }
+      setCombining(true);
+      setImportError(null);
+      try {
+        // 1. 渲染两页为 canvas（按文档顺序：前页在上/左）
+        const canvases = await Promise.all(
+          targets.map((p) =>
+            renderPageToCanvas({
+              sourceId: p.sourceId,
+              pageIndex: p.sourcePageIndex,
+              rotation: p.rotation,
+              targetWidth: 1500,
+            }).then((r) => r.canvas),
+          ),
+        );
+        // 2. 拼合 + 生成单页 PDF
+        const combined = compositeCanvases(canvases, options.layout);
+        const bytes = await canvasToSinglePagePdf(combined);
+        // 3. 注册合成源
+        combineSeq.current += 1;
+        const seq = combineSeq.current;
+        const sourceId = `comb-src-${seq}`;
+        const pageId = `comb-${seq}`;
+        const name = `拼合-${seq}`;
+        const ab = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(ab).set(bytes);
+        await pdfSourceManager.open(sourceId, name, ab);
+        // 4. 组装命令
+        const combinedPage: PageRef = {
+          id: pageId,
+          sourceId,
+          sourcePageIndex: 0,
+          rotation: 0,
+          label: targets[0].label,
+        };
+        const insert: Command = {
+          kind: 'insert',
+          pages: [combinedPage],
+          index: 0,
+          sources: [{ id: sourceId, name, pageCount: 1 }],
+        };
+        if (options.removeOriginals) {
+          const firstIndex = Math.min(...targets.map((p) => doc.pages.findIndex((x) => x.id === p.id)));
+          dispatchCmd({
+            kind: 'composite',
+            steps: [{ kind: 'delete', pageIds }, { ...insert, index: firstIndex }],
+          });
+        } else {
+          const lastIndex = Math.max(...targets.map((p) => doc.pages.findIndex((x) => x.id === p.id)));
+          dispatchCmd({ ...insert, index: lastIndex + 1 });
+        }
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : '拼合失败');
+      } finally {
+        setCombining(false);
+      }
+    },
+    [dispatchCmd],
+  );
+
   return {
     document: store.document,
     canUndo: store.history.past.length > 0,
     canRedo: store.history.future.length > 0,
     importing,
+    combining,
     importError,
     dispatch: dispatchCmd,
     undo: undoFn,
     redo: redoFn,
     importFiles,
     importPdf,
+    combinePages,
   };
 }

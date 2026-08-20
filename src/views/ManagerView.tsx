@@ -14,6 +14,8 @@ import type { Command } from '../core/commands';
 import type { DocumentState, PageRef } from '../core/types';
 import { collectGroups, groupColor, relabelPagesCommand } from '../core/labels';
 import { computeDropPreview, computeReorderForDrop, sortedDraggedIds, type DropPreview } from '../core/dnd';
+import type { CombineOptions } from '../combine/combinePages';
+import type { CombineLayout } from '../combine/layout';
 import { LazyMount } from '../components/LazyMount';
 import { PageRenderer } from '../render/PageRenderer';
 
@@ -22,11 +24,13 @@ type Filter = 'all' | 'unlabeled' | string;
 export interface ManagerViewProps {
   document: DocumentState;
   dispatch: (command: Command, mergeKey?: string | null) => void;
+  combinePages: (pageIds: string[], options: CombineOptions) => Promise<void>;
+  combining: boolean;
 }
 
 const THUMB = 170;
 
-export function ManagerView({ document, dispatch }: ManagerViewProps) {
+export function ManagerView({ document, dispatch, combinePages, combining }: ManagerViewProps) {
   const pages = document.pages;
   const groups = useMemo(() => collectGroups(pages), [pages]);
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -34,6 +38,9 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
   const [filter, setFilter] = useState<Filter>('all');
   const [dragCount, setDragCount] = useState(0);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
+  const [combineOpen, setCombineOpen] = useState(false);
+  const [combineLayout, setCombineLayout] = useState<CombineLayout>('vertical');
+  const [combineRemove, setCombineRemove] = useState(true);
   const draggedRef = useRef<string[]>([]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -170,6 +177,15 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
           <button type="button" className="rounded border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50 disabled:opacity-40" disabled={selection.size === 0} onClick={deleteSelected}>
             删除
           </button>
+          <button
+            type="button"
+            className="rounded border border-neutral-300 px-2 py-1 hover:bg-neutral-100 disabled:opacity-40"
+            disabled={selection.size !== 2 || combining}
+            onClick={() => setCombineOpen(true)}
+            title="把选中的 2 页拼合为 1 页"
+          >
+            {combining ? '拼合中…' : '拼合'}
+          </button>
           <span className="mx-1 h-4 w-px bg-neutral-300" />
           <label className="flex items-center gap-1 text-neutral-600">
             分组到
@@ -255,6 +271,22 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
           )}
         </div>
       </div>
+
+      {combineOpen && (
+        <CombineModal
+          layout={combineLayout}
+          removeOriginals={combineRemove}
+          busy={combining}
+          onLayoutChange={setCombineLayout}
+          onRemoveChange={setCombineRemove}
+          onSubmit={() => {
+            void combinePages([...selection], { layout: combineLayout, removeOriginals: combineRemove });
+            setCombineOpen(false);
+            setSelection(new Set());
+          }}
+          onClose={() => setCombineOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -370,6 +402,91 @@ function SortablePage({
         <button type="button" title="左旋 90°" className="rounded bg-neutral-800/80 px-1.5 py-0.5 text-xs text-white hover:bg-neutral-900" onClick={() => onRotate(-90)}>⟲</button>
         <button type="button" title="右旋 90°" className="rounded bg-neutral-800/80 px-1.5 py-0.5 text-xs text-white hover:bg-neutral-900" onClick={() => onRotate(90)}>⟳</button>
         <button type="button" title="删除" className="rounded bg-red-600/90 px-1.5 py-0.5 text-xs text-white hover:bg-red-700" onClick={onDelete}>✕</button>
+      </div>
+    </div>
+  );
+}
+
+function CombineModal({
+  layout,
+  removeOriginals,
+  busy,
+  onLayoutChange,
+  onRemoveChange,
+  onSubmit,
+  onClose,
+}: {
+  layout: CombineLayout;
+  removeOriginals: boolean;
+  busy: boolean;
+  onLayoutChange: (v: CombineLayout) => void;
+  onRemoveChange: (v: boolean) => void;
+  onSubmit: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="w-[26rem] rounded-lg bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="mb-2 text-base font-semibold text-neutral-800">拼合页面</h2>
+        <p className="mb-4 text-xs text-neutral-500">
+          把选中的 2 页拼合为 1 页（A4）。按文档顺序：第 1 页在上/左，第 2 页在下/右。
+        </p>
+
+        <div className="mb-4">
+          <div className="mb-1 text-sm text-neutral-700">排版</div>
+          <div className="flex gap-2">
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="radio"
+                name="combine-layout"
+                checked={layout === 'vertical'}
+                onChange={() => onLayoutChange('vertical')}
+              />
+              上下排列
+            </label>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="radio"
+                name="combine-layout"
+                checked={layout === 'horizontal'}
+                onChange={() => onLayoutChange('horizontal')}
+              />
+              左右排列
+            </label>
+          </div>
+        </div>
+
+        <label className="mb-4 flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={removeOriginals}
+            onChange={(e) => onRemoveChange(e.target.checked)}
+          />
+          <span>
+            拼合后<b>删除</b>原两页（用合成页替换）
+            <span className="block text-xs text-neutral-400">不勾选则保留原两页，另插入一张合成页</span>
+          </span>
+        </label>
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100"
+            onClick={onClose}
+            disabled={busy}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            onClick={onSubmit}
+            disabled={busy}
+          >
+            {busy ? '拼合中…' : '拼合'}
+          </button>
+        </div>
       </div>
     </div>
   );

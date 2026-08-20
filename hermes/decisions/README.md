@@ -22,3 +22,4 @@
 - [0007-large-file-memory-budget.md](./0007-large-file-memory-budget.md)
 - [0008-label-derived-groups.md](./0008-label-derived-groups.md)
 - [0009-local-bridge-for-camscanner-share.md](./0009-local-bridge-for-camscanner-share.md)
+- [0010-page-combine.md](./0010-page-combine.md)

@@ -25,6 +25,7 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
 - 分组不强制顺序；拖动排序仅在「全部」视图开放（筛选视图只读）。
 - 版本时间戳（开发辅助）：页头显示 `v0.1 · <本地时间 精确到秒>`，由 vite `define` 在 dev server 启动/构建时注入 `__BUILD_TIME__`。
 - CamScanner 分享链接导入（ADR 0009）：`scripts/camscanner-share-lib.mjs`（分享→PDF 共享逻辑，公开分享免登录）+ `scripts/camscanner-bridge.mjs`（本地 HTTP 桥，127.0.0.1:8787，`POST /import` + `GET /health` + CORS）+ `scripts/camscanner-share-download.mjs`（CLI）。前端「扫描全能王」按钮 → 桥 → `store.importPdf` 导入管线。
+- 页面拼合（ADR 0010）：选中 2 页 →「拼合」→ 上下/左右排版 + 「是否删除原两页」复选框 → composite 命令（删原两页 + 插入合成页）或单条 insert；合成页 = canvas 合成 + pdf-lib 单页 PDF + 合成源，零改动文档核心。
 - 扫描件 spike（2026-08-20，3 份 CamScanner 真实样本，共 230 页）：全部为 JPEG（DCTDecode）编码；pdf-lib 单份复制+保存成功且体积几乎不变（约 1.00x）；三份合并 230 页耗时约 600ms、输出 157.7MB、旋转叠加正确。JPEG2000/CCITT/JBIG2 未在样本中出现，风险仍待其他来源样本验证。
 
 ## 已确认决策（2026-08-19）
@@ -39,7 +40,7 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
 
 ## 自动验证
 
-- `npm run test`：8 个测试文件、70 个测试通过（命令/撤销/重做/LRU/fitScale/分组/dnd 拖拽重排/落点预览/导出计划/导出页序与旋转映射）。
+- `npm run test`：10 个测试文件、76 个测试通过（命令/撤销/重做/composite/LRU/fitScale/分组/dnd/落点预览/排版/导出计划/页序映射）。
 - `npm run build`：通过（pdf.js worker 独立 chunk 1.17MB，导出 worker 422KB，主包 693KB）。
 - `npm run lint`：通过（scripts/ 已加入忽略）。
 - `npx tsc -b`：通过。
@@ -47,8 +48,9 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
 
 ## 已知未完成验证
 
-- 页面管理视图的浏览器端交互（拖动排序、多选、hover、分组）需手工打开 `npm run dev` 验证。
-- CamScanner 导入的前端 UI 全流程（点「扫描全能王」→ 粘贴链接 → 自动导入）需在浏览器 + `npm run bridge` 下手工验证；桥的 `/health`、`/import`、CORS 预检已用 curl 验证通过。
+- 页面管理视图的浏览器端交互（拖动排序、多选、hover、分组、拼合）需手工打开 `npm run dev` 验证。
+- 拼合的浏览器路径（renderPageToCanvas → compositeCanvases → canvasToSinglePagePdf → 合成源导入）未自动化；纯逻辑（composite 命令、computeCombineLayout）已有单测。
+- CamScanner 导入的前端 UI 全流程需在浏览器 + `npm run bridge` 下手工验证。
 - JPEG2000/CCITT/JBIG2 编码的扫描件导出兼容性仍未覆盖（已测样本均为 JPEG）。
 
 ## 下一步（按顺序）

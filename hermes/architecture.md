@@ -41,10 +41,17 @@
 
 - `src/core/types.ts`：PageRef、SourceRef、Rotation、Command 类型。
 - `src/core/document.ts`：PageList reducer 与派生选择器。
-- `src/core/commands.ts`：reorder/rotate/delete/insert/merge/relabel 及逆操作。
+- `src/core/commands.ts`：reorder/rotate/delete/insert/merge/relabel/setOrder/composite 及逆操作。
 - `src/core/history.ts`：撤销/重做栈（上限、连续命令合并）。
 - `src/core/sources.ts`：导入负载构建（importCommand）。
 - `src/core/labels.ts`：分组纯函数（relabelPagesCommand、collectGroups、groupColor，标签派生模型见 ADR 0008）。
+- `src/core/dnd.ts`：拖拽排序纯函数（computeReorderForDrop、computeDropPreview）。
+
+### 拼合边界
+
+- `src/combine/layout.ts`：排版纯函数（computeCombineLayout，A4@150dpi）。
+- `src/combine/combinePages.ts`：compositeCanvases（canvas 合成）+ canvasToSinglePagePdf（pdf-lib 单页 PDF）。
+- 拼合页 = 合成源 + 普通 PageRef，零改动文档核心（ADR 0010）。
 
 ### 渲染边界
 

@@ -11,7 +11,18 @@ export type Command =
   | InsertCommand
   | MergeSourcesCommand
   | RelabelCommand
-  | SetOrderCommand;
+  | SetOrderCommand
+  | CompositeCommand;
+
+/**
+ * 复合命令：顺序执行若干子命令，作为一个整体（一次撤销）。
+ * 逆操作 = 各子命令逆操作按相反顺序组成的 composite。
+ * 用于「拼合」（删原页 + 插入合成页）等多步原子操作。
+ */
+export interface CompositeCommand {
+  kind: 'composite';
+  steps: Command[];
+}
 
 /**
  * 将若干页移动到目标位置。
@@ -245,6 +256,18 @@ function applyRelabel(state: DocumentState, cmd: RelabelCommand): CommandResult 
   return { state: { ...state, pages }, inverse };
 }
 
+function applyComposite(state: DocumentState, cmd: CompositeCommand): CommandResult {
+  let current = state;
+  const inverses: Command[] = [];
+  for (const step of cmd.steps) {
+    const result = apply(current, step);
+    current = result.state;
+    inverses.push(result.inverse);
+  }
+  const inverse: CompositeCommand = { kind: 'composite', steps: inverses.reverse() };
+  return { state: current, inverse };
+}
+
 /**
  * 应用命令，返回新状态与逆命令。
  * 约定：命令不可变；状态以新对象返回（不就地修改）。
@@ -265,5 +288,7 @@ export function apply(state: DocumentState, command: Command): CommandResult {
       return applyMergeSources(state, command);
     case 'relabel':
       return applyRelabel(state, command);
+    case 'composite':
+      return applyComposite(state, command);
   }
 }

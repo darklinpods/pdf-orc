@@ -218,7 +218,12 @@ export default function App() {
         ) : mode === 'reader' ? (
           <ReaderView document={store.document} />
         ) : (
-          <ManagerView document={store.document} dispatch={store.dispatch} />
+          <ManagerView
+            document={store.document}
+            dispatch={store.dispatch}
+            combinePages={store.combinePages}
+            combining={store.combining}
+          />
         )}
       </div>
     </main>
