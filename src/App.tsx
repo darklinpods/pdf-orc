@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useDocumentStore } from './store/useDocumentStore';
+import { exportDocument, type ExportProgress } from './export/exporter';
 import { ReaderView } from './views/ReaderView';
 import { ManagerView } from './views/ManagerView';
 
@@ -9,11 +10,32 @@ export default function App() {
   const store = useDocumentStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<Mode>('manager');
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exported, setExported] = useState(false);
   const pageCount = store.document.pages.length;
 
   const onPickFiles = (files: FileList | null) => {
     if (files === null || files.length === 0) return;
     void store.importFiles(Array.from(files));
+  };
+
+  const onExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    setExported(false);
+    setExportProgress({ done: 0, total: pageCount });
+    try {
+      await exportDocument(store.document, setExportProgress);
+      setExported(true);
+      window.setTimeout(() => setExported(false), 3000);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : '导出失败');
+    } finally {
+      setExporting(false);
+      setExportProgress(null);
+    }
   };
 
   return (
@@ -60,6 +82,14 @@ export default function App() {
           >
             {store.importing ? '导入中…' : '导入 PDF'}
           </button>
+          <button
+            type="button"
+            className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+            onClick={() => void onExport()}
+            disabled={pageCount === 0 || exporting}
+          >
+            {exporting ? '导出中…' : '导出'}
+          </button>
         </div>
       </header>
 
@@ -68,6 +98,20 @@ export default function App() {
           {store.importError}
         </div>
       )}
+
+      {exportError !== null && (
+        <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {exportError}
+        </div>
+      )}
+
+      {exported && (
+        <div className="border-b border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+          已导出 PDF，请在浏览器下载中查看。
+        </div>
+      )}
+
+      {exporting && <ExportOverlay progress={exportProgress} />}
 
       <input
         ref={fileInputRef}
@@ -125,5 +169,23 @@ function ModeButton({
     >
       {children}
     </button>
+  );
+}
+
+function ExportOverlay({ progress }: { progress: ExportProgress | null }) {
+  const total = progress?.total ?? 0;
+  const percent = total > 0 ? Math.round(((progress?.done ?? 0) / total) * 100) : 0;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+      <div className="w-80 rounded-lg bg-white p-5 shadow-xl">
+        <p className="mb-3 text-sm font-medium text-neutral-700">正在导出 PDF…</p>
+        <div className="h-2 w-full overflow-hidden rounded bg-neutral-200">
+          <div className="h-full bg-green-600 transition-all" style={{ width: `${percent}%` }} />
+        </div>
+        <p className="mt-2 text-xs tabular-nums text-neutral-500">
+          {total > 0 ? `已复制 ${progress?.done ?? 0}/${total} 页` : '正在读取源文件…'}
+        </p>
+      </div>
+    </div>
   );
 }
