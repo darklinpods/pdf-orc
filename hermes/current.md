@@ -4,7 +4,7 @@
 
 ## 阶段
 
-v0.1（MVP）施工中：脚手架、文档核心、渲染边界、阅读视图、页面管理（含分组）、导出边界、真实扫描件 spike 均已完成，进入 v0.2（插入页面）。
+v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、页面管理（含分组）、导出边界、真实扫描件 spike、CamScanner 分享链接导入（本地桥接）均已落地。下一步进入 v0.2（插入页面）。
 
 ## 当前分支
 
@@ -24,6 +24,7 @@ v0.1（MVP）施工中：脚手架、文档核心、渲染边界、阅读视图�
 - 导出边界（`src/export/`）：导出计划（plan，含旋转归一化与文件名建议）→ pdf-lib 组装（build，copyPages + 叠加旋转）→ Web Worker（export.worker，避免阻塞 UI）→ 下载（exporter，源字节经 `proxy.getData()` 取回并 transfer 移交 worker）；App 头部「导出」按钮 + 进度浮层 + 错误/成功提示。
 - 分组不强制顺序；拖动排序仅在「全部」视图开放（筛选视图只读）。
 - 版本时间戳（开发辅助）：页头显示 `v0.1 · <本地时间 精确到秒>`，由 vite `define` 在 dev server 启动/构建时注入 `__BUILD_TIME__`。
+- CamScanner 分享链接导入（ADR 0009）：`scripts/camscanner-share-lib.mjs`（分享→PDF 共享逻辑，公开分享免登录）+ `scripts/camscanner-bridge.mjs`（本地 HTTP 桥，127.0.0.1:8787，`POST /import` + `GET /health` + CORS）+ `scripts/camscanner-share-download.mjs`（CLI）。前端「扫描全能王」按钮 → 桥 → `store.importPdf` 导入管线。
 - 扫描件 spike（2026-08-20，3 份 CamScanner 真实样本，共 230 页）：全部为 JPEG（DCTDecode）编码；pdf-lib 单份复制+保存成功且体积几乎不变（约 1.00x）；三份合并 230 页耗时约 600ms、输出 157.7MB、旋转叠加正确。JPEG2000/CCITT/JBIG2 未在样本中出现，风险仍待其他来源样本验证。
 
 ## 已确认决策（2026-08-19）
@@ -46,10 +47,9 @@ v0.1（MVP）施工中：脚手架、文档核心、渲染边界、阅读视图�
 
 ## 已知未完成验证
 
-- 页面管理视图的浏览器端交互（拖动排序、多选、hover、分组）需手工打开 `npm run dev` 验证；headless Chrome 在本环境不稳定，未自动化。
-- 选中组拖动为「拖放后一次性提交」简化实现（拖动过程中无逐帧重排预览），是否符合预期需实测。
-- 导出的浏览器端全流程（点击导出 → 进度 → 下载文件）需手工验证；核心组装逻辑已由 `build.test.ts` 在 Node 环境用 pdf-lib 覆盖。
-- JPEG2000/CCITT/JBIG2 编码的扫描件导出兼容性仍未覆盖（已测的 3 份 CamScanner 样本均为 JPEG）；遇到此类编码样本需重跑 `scripts/export-spike.mjs`。
+- 页面管理视图的浏览器端交互（拖动排序、多选、hover、分组）需手工打开 `npm run dev` 验证。
+- CamScanner 导入的前端 UI 全流程（点「扫描全能王」→ 粘贴链接 → 自动导入）需在浏览器 + `npm run bridge` 下手工验证；桥的 `/health`、`/import`、CORS 预检已用 curl 验证通过。
+- JPEG2000/CCITT/JBIG2 编码的扫描件导出兼容性仍未覆盖（已测样本均为 JPEG）。
 
 ## 下一步（按顺序）
 

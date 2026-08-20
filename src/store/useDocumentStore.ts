@@ -22,6 +22,8 @@ export interface DocumentStore {
   undo: () => void;
   redo: () => void;
   importFiles: (files: File[]) => Promise<void>;
+  /** 从内存字节导入一份 PDF（如桥接服务下载的分享文档）。 */
+  importPdf: (name: string, buffer: ArrayBuffer) => Promise<void>;
 }
 
 /**
@@ -63,21 +65,39 @@ export function useDocumentStore(): DocumentStore {
     for (const file of files) {
       try {
         const buffer = await file.arrayBuffer();
-        const sourceId = nextSourceId(file.name);
-        // 打开源（pdf.js 解析），拿到实际页数。
-        const handle = await pdfSourceManager.open(sourceId, file.name, buffer);
-        setStore((s) => {
-          const command = importCommand(sourceId, file.name, handle.pageCount, s.document.nextPageId);
-          const next = dispatch(s.document, s.history, command);
-          return { document: next.state, history: next.history };
-        });
+        await importOne(file.name, buffer);
       } catch (err) {
-        // 单文件失败不阻断其余文件；记录可操作的中文错误。
         setImportError(err instanceof Error ? `${file.name}：${err.message}` : `${file.name}：导入失败`);
       }
     }
     setImporting(false);
   }, []);
+
+  const importOne = useCallback(async (name: string, buffer: ArrayBuffer) => {
+    const sourceId = nextSourceId(name);
+    // 打开源（pdf.js 解析），拿到实际页数。
+    const handle = await pdfSourceManager.open(sourceId, name, buffer);
+    setStore((s) => {
+      const command = importCommand(sourceId, name, handle.pageCount, s.document.nextPageId);
+      const next = dispatch(s.document, s.history, command);
+      return { document: next.state, history: next.history };
+    });
+  }, []);
+
+  const importPdf = useCallback(
+    async (name: string, buffer: ArrayBuffer) => {
+      setImporting(true);
+      setImportError(null);
+      try {
+        await importOne(name, buffer);
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : `${name}：导入失败`);
+      } finally {
+        setImporting(false);
+      }
+    },
+    [importOne],
+  );
 
   return {
     document: store.document,
@@ -89,5 +109,6 @@ export function useDocumentStore(): DocumentStore {
     undo: undoFn,
     redo: redoFn,
     importFiles,
+    importPdf,
   };
 }
