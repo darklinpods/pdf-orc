@@ -23,6 +23,7 @@ v0.1（MVP）施工中：脚手架、文档核心、渲染边界、阅读视图�
 - 双视图切换（`src/App.tsx`）：页面管理 / 阅读。
 - 导出边界（`src/export/`）：导出计划（plan，含旋转归一化与文件名建议）→ pdf-lib 组装（build，copyPages + 叠加旋转）→ Web Worker（export.worker，避免阻塞 UI）→ 下载（exporter，源字节经 `proxy.getData()` 取回并 transfer 移交 worker）；App 头部「导出」按钮 + 进度浮层 + 错误/成功提示。
 - 分组不强制顺序；拖动排序仅在「全部」视图开放（筛选视图只读）。
+- 版本时间戳（开发辅助）：页头显示 `v0.1 · <本地时间 精确到秒>`，由 vite `define` 在 dev server 启动/构建时注入 `__BUILD_TIME__`。
 - 扫描件 spike（2026-08-20，3 份 CamScanner 真实样本，共 230 页）：全部为 JPEG（DCTDecode）编码；pdf-lib 单份复制+保存成功且体积几乎不变（约 1.00x）；三份合并 230 页耗时约 600ms、输出 157.7MB、旋转叠加正确。JPEG2000/CCITT/JBIG2 未在样本中出现，风险仍待其他来源样本验证。
 
 ## 已确认决策（2026-08-19）

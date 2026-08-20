@@ -6,6 +6,13 @@ import { ManagerView } from './views/ManagerView';
 
 type Mode = 'reader' | 'manager';
 
+/** 把 ISO UTC 时间戳格式化为本地时间（精确到秒）。 */
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export default function App() {
   const store = useDocumentStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +50,9 @@ export default function App() {
       <header className="flex items-center gap-3 border-b border-neutral-300 bg-white px-4 py-2">
         <h1 className="text-lg font-semibold">pdf-orc</h1>
         <span className="text-sm text-neutral-400">PDF 案卷整理</span>
+        <span className="text-xs tabular-nums text-neutral-400" title="版本时间戳（dev server 启动 / 构建时间）">
+          v0.1 · {formatTimestamp(__BUILD_TIME__)}
+        </span>
 
         {/* 视图切换 */}
         <nav className="ml-4 flex rounded-lg border border-neutral-300 p-0.5">
