@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeReorderForDrop, sortedDraggedIds } from './dnd';
+import { computeDropPreview, computeReorderForDrop, sortedDraggedIds } from './dnd';
 
 const O = ['A', 'B', 'C', 'D', 'E'];
 
@@ -42,5 +42,35 @@ describe('computeReorderForDrop', () => {
 describe('sortedDraggedIds', () => {
   it('按当前页序排序被拖拽页', () => {
     expect(sortedDraggedIds(O, ['D', 'A', 'C'])).toEqual(['A', 'C', 'D']);
+  });
+});
+
+describe('computeDropPreview', () => {
+  it('单页向下拖：插入到落点之后', () => {
+    expect(computeDropPreview(O, ['A'], 'C')).toEqual({ insertIndex: 3, finalPageNumber: 3 });
+  });
+
+  it('单页向上拖：插入到落点之前', () => {
+    expect(computeDropPreview(O, ['D'], 'B')).toEqual({ insertIndex: 1, finalPageNumber: 2 });
+  });
+
+  it('拖到最前：insertIndex 为 0', () => {
+    expect(computeDropPreview(O, ['E'], 'A')).toEqual({ insertIndex: 0, finalPageNumber: 1 });
+  });
+
+  it('拖到最后：insertIndex 等于列表长度（追加末尾）', () => {
+    expect(computeDropPreview(O, ['A'], 'E')).toEqual({ insertIndex: 5, finalPageNumber: 5 });
+  });
+
+  it('散选组向下拖', () => {
+    expect(computeDropPreview(O, ['A', 'C'], 'D')).toEqual({ insertIndex: 4, finalPageNumber: 3 });
+  });
+
+  it('自落返回 null', () => {
+    expect(computeDropPreview(O, ['A', 'C'], 'C')).toBeNull();
+  });
+
+  it('落点不存在返回 null', () => {
+    expect(computeDropPreview(O, ['A'], 'Z')).toBeNull();
   });
 });

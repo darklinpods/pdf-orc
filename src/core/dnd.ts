@@ -39,3 +39,34 @@ export function sortedDraggedIds(order: string[], draggedIds: string[]): string[
   const set = new Set(draggedIds);
   return order.filter((id) => set.has(id));
 }
+
+/** 拖拽落点的可视化预览信息。 */
+export interface DropPreview {
+  /** 插入到完整列表的哪个下标之前（0..order.length；等于 length 表示追加到末尾）。 */
+  insertIndex: number;
+  /** 落定后，被拖拽块首页的 1-based 页码。 */
+  finalPageNumber: number;
+}
+
+/**
+ * 计算拖拽落点预览；返回 null 表示无有效落点（自落 / 落点不存在 / 空拖拽）。
+ * 与 computeReorderForDrop 共用同一套落点语义，保证指示符与实际结果一致。
+ */
+export function computeDropPreview(
+  order: string[],
+  draggedIds: string[],
+  overId: string,
+): DropPreview | null {
+  const cmd = computeReorderForDrop(order, draggedIds, overId);
+  if (cmd === null) return null;
+  const dragged = new Set(draggedIds);
+  let insertIndex = 0;
+  let remaining = cmd.to;
+  for (let i = 0; i < order.length; i++) {
+    if (dragged.has(order[i])) continue;
+    if (remaining === 0) break;
+    remaining -= 1;
+    insertIndex = i + 1;
+  }
+  return { insertIndex, finalPageNumber: cmd.to + 1 };
+}

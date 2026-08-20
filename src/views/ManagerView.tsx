@@ -6,13 +6,14 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import type { Command } from '../core/commands';
 import type { DocumentState, PageRef } from '../core/types';
 import { collectGroups, groupColor, relabelPagesCommand } from '../core/labels';
-import { computeReorderForDrop, sortedDraggedIds } from '../core/dnd';
+import { computeDropPreview, computeReorderForDrop, sortedDraggedIds, type DropPreview } from '../core/dnd';
 import { LazyMount } from '../components/LazyMount';
 import { PageRenderer } from '../render/PageRenderer';
 
@@ -32,6 +33,7 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
   const [anchorId, setAnchorId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [dragCount, setDragCount] = useState(0);
+  const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const draggedRef = useRef<string[]>([]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -78,6 +80,17 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
       : [activeId];
     draggedRef.current = dragged;
     setDragCount(dragged.length);
+    setDropPreview(null);
+  }
+
+  function onDragOver(e: DragOverEvent) {
+    const overId = e.over === null ? null : String(e.over.id);
+    const dragged = draggedRef.current;
+    if (overId === null || dragged.length === 0) {
+      setDropPreview(null);
+      return;
+    }
+    setDropPreview(computeDropPreview(order, dragged, overId));
   }
 
   function onDragEnd(e: DragEndEvent) {
@@ -85,6 +98,7 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
     const dragged = draggedRef.current;
     draggedRef.current = [];
     setDragCount(0);
+    setDropPreview(null);
     if (overId === null || dragged.length === 0) return;
     if (overId === String(e.active.id)) return;
     const command = computeReorderForDrop(order, dragged, overId);
@@ -194,7 +208,13 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
           {filter !== 'all' && (
             <p className="mb-3 text-xs text-neutral-500">当前为筛选视图，仅可查看与选择；拖动排序请在「全部」视图进行。</p>
           )}
-          <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+          <DndContext
+            sensors={sensors}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragEnd={onDragEnd}
+            onDragCancel={() => setDropPreview(null)}
+          >
             <SortableContext items={visibleIds} strategy={rectSortingStrategy}>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
                 {visiblePages.map((page, i) => (
@@ -204,6 +224,13 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
                     index={pages.findIndex((p) => p.id === page.id) + 1}
                     selected={selection.has(page.id)}
                     disabled={filter !== 'all'}
+                    dropBefore={dropPreview !== null && i === dropPreview.insertIndex}
+                    dropAfter={
+                      dropPreview !== null &&
+                      dropPreview.insertIndex === visiblePages.length &&
+                      i === visiblePages.length - 1
+                    }
+                    dropPageNumber={dropPreview?.finalPageNumber}
                     onClick={(e) => handleClick(page, e)}
                     onRotate={(delta) => dispatch({ kind: 'rotate', pageIds: [page.id], delta }, 'rotate')}
                     onDelete={() => {
@@ -218,7 +245,7 @@ export function ManagerView({ document, dispatch }: ManagerViewProps) {
             <DragOverlay>
               {dragCount > 0 ? (
                 <div className="rounded-lg border border-blue-300 bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
-                  移动 {dragCount} 页
+                  {dropPreview !== null ? `移动到第 ${dropPreview.finalPageNumber} 页` : `移动 ${dragCount} 页`}
                 </div>
               ) : null}
             </DragOverlay>
@@ -265,6 +292,9 @@ function SortablePage({
   index,
   selected,
   disabled,
+  dropBefore,
+  dropAfter,
+  dropPageNumber,
   onClick,
   onRotate,
   onDelete,
@@ -273,6 +303,9 @@ function SortablePage({
   index: number;
   selected: boolean;
   disabled: boolean;
+  dropBefore: boolean;
+  dropAfter: boolean;
+  dropPageNumber?: number;
   onClick: (e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => void;
   onRotate: (delta: 90 | -90) => void;
   onDelete: () => void;
@@ -289,6 +322,22 @@ function SortablePage({
         selected ? 'border-blue-500 ring-2 ring-blue-500/60' : 'border-neutral-300 hover:border-neutral-400'
       } ${isDragging ? 'opacity-40' : ''}`}
     >
+      {/* 拖拽落点指示：蓝色插入线 + 落定页码 */}
+      {dropBefore && (
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center">
+          <div className="h-full w-1 rounded bg-blue-600" />
+          {dropPageNumber !== undefined && (
+            <div className="ml-1 rounded bg-blue-600 px-1.5 py-0.5 text-xs font-medium text-white shadow">
+              第 {dropPageNumber} 页
+            </div>
+          )}
+        </div>
+      )}
+      {dropAfter && (
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center">
+          <div className="h-full w-1 rounded bg-blue-600" />
+        </div>
+      )}
       <LazyMount className="flex h-44 items-center justify-center overflow-hidden">
         <PageRenderer
           sourceId={page.sourceId}
