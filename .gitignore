@@ -3,3 +3,6 @@ dist
 *.local
 .DS_Store
 node_modules/.tmp
+
+# 真实扫描件样本（本地验证用，不提交）
+samples/
