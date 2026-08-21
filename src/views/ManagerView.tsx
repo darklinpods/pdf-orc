@@ -26,6 +26,8 @@ export interface ManagerViewProps {
   combining: boolean;
   insertBlankPages: (count: number, index: number) => Promise<void>;
   insertPdfAt: (name: string, buffer: ArrayBuffer, index: number) => Promise<void>;
+  onExportSelected: (pageIds: string[]) => void;
+  exporting: boolean;
   filter: PageFilter;
   onFilterChange: (filter: PageFilter) => void;
 }
@@ -39,6 +41,8 @@ export function ManagerView({
   combining,
   insertBlankPages,
   insertPdfAt,
+  onExportSelected,
+  exporting,
   filter,
   onFilterChange,
 }: ManagerViewProps) {
@@ -229,6 +233,15 @@ export function ManagerView({
             title="插入空白页或从其他 PDF 插入页面"
           >
             插入
+          </button>
+          <button
+            type="button"
+            className="rounded bg-green-600 px-2 py-1 text-white hover:bg-green-700 disabled:opacity-40"
+            disabled={selection.size === 0 || exporting}
+            onClick={() => onExportSelected(pages.filter((p) => selection.has(p.id)).map((p) => p.id))}
+            title="把选中的页面导出为 PDF"
+          >
+            {exporting ? '导出中…' : `导出选中${selection.size > 0 ? `（${selection.size}）` : ''}`}
           </button>
           <span className="mx-1 h-4 w-px bg-neutral-300" />
           <label className="flex items-center gap-1 text-neutral-600">

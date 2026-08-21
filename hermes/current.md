@@ -21,7 +21,7 @@ v0.1 完成；v0.2 进行中——插入页面已实现。剩余 v0.2：N 页拼
 - 页面管理视图（`src/views/ManagerView.tsx`）：大缩略图网格、多选（单击/Cmd/Shift）、dnd-kit 拖动排序（单页/选中组）、拖拽落点插入指示符（蓝色插入线 + 落定页码，与 `computeDropPreview` 落点语义一致）、hover 旋转/删除、左侧分组面板、工具栏（全选/旋转/删除/分组到/拼合/插入）、空格大图预览（整页预览，左右键翻页，再按空格/点空白关闭）。
 - 分组（ADR 0008 标签派生）：label 存组名，组列表派生，颜色哈希，复用 relabel 命令。
 - 双视图切换（`src/App.tsx`）：页面管理 / 阅读。
-- 导出边界（`src/export/`）：导出计划（plan，含旋转归一化、文件名建议与子集 pageIds 支持）→ pdf-lib 组装（build，copyPages + 叠加旋转）→ Web Worker（export.worker，避免阻塞 UI）→ 下载（exporter，源字节经 `proxy.getData()` 取回并 transfer 移交 worker）；App 头部「导出」按钮 + 进度浮层 + 错误/成功提示；导出范围跟随当前筛选（页面管理视图：全部 / 未分组 / 某分组；阅读视图：全部），按钮标签随筛选变化（导出 / 导出未分组 / 导出「组名」）。
+- 导出边界（`src/export/`）：导出计划（plan，含旋转归一化、文件名建议与子集 pageIds 支持）→ pdf-lib 组装（build，copyPages + 叠加旋转）→ Web Worker（export.worker，避免阻塞 UI）→ 下载（exporter，源字节经 `proxy.getData()` 取回并 transfer 移交 worker）；App 头部「导出」按钮 + 进度浮层 + 错误/成功提示；导出范围跟随当前筛选（页面管理视图：全部 / 未分组 / 某分组；阅读视图：全部），按钮标签随筛选变化（导出 / 导出未分组 / 导出「组名」）；页面管理工具栏另有「导出选中（N）」按钮，按文档顺序导出选中页。
 - 分组不强制顺序；拖动排序仅在「全部」视图开放（筛选视图只读）。
 - 版本时间戳（开发辅助）：页头显示 `v0.1 · <本地时间 精确到秒>`，由 vite `define` 在 dev server 启动/构建时注入 `__BUILD_TIME__`。
 - CamScanner 分享链接导入（ADR 0009）：`scripts/camscanner-share-lib.mjs`（分享→PDF 共享逻辑，公开分享免登录）+ `scripts/camscanner-bridge.mjs`（本地 HTTP 桥，127.0.0.1:8787，`POST /import` + `GET /health` + CORS）+ `scripts/camscanner-share-download.mjs`（CLI）。前端「扫描全能王」按钮 → 桥 → `store.importPdf` 导入管线。

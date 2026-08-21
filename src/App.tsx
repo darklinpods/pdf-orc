@@ -84,18 +84,12 @@ export default function App() {
     }
   };
 
-  const onExport = async () => {
-    const pageIds = exportPages.map((p) => p.id);
-    const filename =
-      mode === 'manager' && filter !== 'all'
-        ? filter === 'unlabeled'
-          ? '未分组-整理.pdf'
-          : `${sanitizeFilename(filter)}-整理.pdf`
-        : undefined;
+  const doExport = async (pageIds: string[], filename?: string) => {
+    if (pageIds.length === 0) return;
     setExporting(true);
     setExportError(null);
     setExported(false);
-    setExportProgress({ done: 0, total: exportCount });
+    setExportProgress({ done: 0, total: pageIds.length });
     try {
       await exportDocument(store.document, {
         onProgress: setExportProgress,
@@ -110,6 +104,21 @@ export default function App() {
       setExporting(false);
       setExportProgress(null);
     }
+  };
+
+  const onExport = () => {
+    const pageIds = exportPages.map((p) => p.id);
+    const filename =
+      mode === 'manager' && filter !== 'all'
+        ? filter === 'unlabeled'
+          ? '未分组-整理.pdf'
+          : `${sanitizeFilename(filter)}-整理.pdf`
+        : undefined;
+    void doExport(pageIds, filename);
+  };
+
+  const onExportSelected = (pageIds: string[]) => {
+    void doExport(pageIds, '选中页面-整理.pdf');
   };
 
   return (
@@ -171,7 +180,7 @@ export default function App() {
           <button
             type="button"
             className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
-            onClick={() => void onExport()}
+            onClick={onExport}
             disabled={exportCount === 0 || exporting}
             title={exportCount < pageCount ? `导出当前筛选的 ${exportCount} 页` : undefined}
           >
@@ -250,6 +259,8 @@ export default function App() {
             combining={store.combining}
             insertBlankPages={store.insertBlankPages}
             insertPdfAt={store.insertPdfAt}
+            onExportSelected={onExportSelected}
+            exporting={exporting}
             filter={filter}
             onFilterChange={setFilter}
           />
