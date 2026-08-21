@@ -248,6 +248,8 @@ export default function App() {
             dispatch={store.dispatch}
             combinePages={store.combinePages}
             combining={store.combining}
+            insertBlankPages={store.insertBlankPages}
+            insertPdfAt={store.insertPdfAt}
             filter={filter}
             onFilterChange={setFilter}
           />

@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
-import { emptyDocument, type DocumentState, type PageRef } from '../core/types';
+import { emptyDocument, type DocumentState, type PageRef, type SourceRef } from '../core/types';
 import type { Command } from '../core/commands';
 import { createHistory, dispatch, redo, undo } from '../core/history';
-import { importCommand } from '../core/sources';
+import { buildImportPayload, importCommand } from '../core/sources';
 import { pdfSourceManager } from '../render/pdfjs';
 import { renderPageToCanvas } from '../render/renderPage';
 import {
@@ -10,6 +10,7 @@ import {
   compositeCanvases,
   type CombineOptions,
 } from '../combine/combinePages';
+import { blankA4PdfBytes } from '../combine/blank';
 
 let sourceSeq = 0;
 function nextSourceId(name: string): string {
@@ -33,6 +34,10 @@ export interface DocumentStore {
   importPdf: (name: string, buffer: ArrayBuffer) => Promise<void>;
   /** 把两页拼合为一页（是否删原页由 options.removeOriginals 决定）。 */
   combinePages: (pageIds: string[], options: CombineOptions) => Promise<void>;
+  /** 在指定位置插入若干空白页。 */
+  insertBlankPages: (count: number, index: number) => Promise<void>;
+  /** 把一份 PDF 的全部页面插入到指定位置。 */
+  insertPdfAt: (name: string, buffer: ArrayBuffer, index: number) => Promise<void>;
 }
 
 /**
@@ -50,6 +55,8 @@ export function useDocumentStore(): DocumentStore {
   const docRef = useRef(store.document);
   docRef.current = store.document;
   const combineSeq = useRef(0);
+  const blankSeq = useRef(0);
+  const blankSourceRef = useRef<SourceRef | null>(null);
 
   const dispatchCmd = useCallback((command: Command, mergeKey: string | null = null) => {
     setStore((s) => {
@@ -179,6 +186,54 @@ export function useDocumentStore(): DocumentStore {
     [dispatchCmd],
   );
 
+  const ensureBlankSource = useCallback(async (): Promise<SourceRef> => {
+    if (blankSourceRef.current !== null) return blankSourceRef.current;
+    const bytes = await blankA4PdfBytes();
+    const sourceId = 'blank-src';
+    const ab = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(ab).set(bytes);
+    await pdfSourceManager.open(sourceId, '空白页', ab);
+    blankSourceRef.current = { id: sourceId, name: '空白页', pageCount: 1 };
+    return blankSourceRef.current;
+  }, []);
+
+  const insertBlankPages = useCallback(
+    async (count: number, index: number) => {
+      if (!Number.isInteger(count) || count <= 0) return;
+      const src = await ensureBlankSource();
+      const pages: PageRef[] = Array.from({ length: count }, () => {
+        blankSeq.current += 1;
+        return {
+          id: `blank-${blankSeq.current}`,
+          sourceId: src.id,
+          sourcePageIndex: 0,
+          rotation: 0,
+          label: null,
+        };
+      });
+      setStore((s) => {
+        const next = dispatch(s.document, s.history, {
+          kind: 'insert',
+          pages,
+          index,
+          sources: [src],
+        });
+        return { document: next.state, history: next.history };
+      });
+    },
+    [ensureBlankSource],
+  );
+
+  const insertPdfAt = useCallback(async (name: string, buffer: ArrayBuffer, index: number) => {
+    const sourceId = nextSourceId(name);
+    const handle = await pdfSourceManager.open(sourceId, name, buffer);
+    setStore((s) => {
+      const { sources, pages } = buildImportPayload(sourceId, name, handle.pageCount, s.document.nextPageId);
+      const next = dispatch(s.document, s.history, { kind: 'insert', pages, index, sources });
+      return { document: next.state, history: next.history };
+    });
+  }, []);
+
   return {
     document: store.document,
     canUndo: store.history.past.length > 0,
@@ -192,5 +247,7 @@ export function useDocumentStore(): DocumentStore {
     importFiles,
     importPdf,
     combinePages,
+    insertBlankPages,
+    insertPdfAt,
   };
 }

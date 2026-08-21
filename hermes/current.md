@@ -4,7 +4,7 @@
 
 ## 阶段
 
-v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、页面管理（含分组）、导出边界、真实扫描件 spike、CamScanner 分享链接导入（本地桥接）均已落地。下一步进入 v0.2（插入页面）。
+v0.1 完成；v0.2 进行中——插入页面已实现。剩余 v0.2：N 页拼合与「裁剪到标准卡尺寸」、批量操作强化（部分已具备）；v0.3：页码标注与卷内目录。
 
 ## 当前分支
 
@@ -26,6 +26,7 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
 - 版本时间戳（开发辅助）：页头显示 `v0.1 · <本地时间 精确到秒>`，由 vite `define` 在 dev server 启动/构建时注入 `__BUILD_TIME__`。
 - CamScanner 分享链接导入（ADR 0009）：`scripts/camscanner-share-lib.mjs`（分享→PDF 共享逻辑，公开分享免登录）+ `scripts/camscanner-bridge.mjs`（本地 HTTP 桥，127.0.0.1:8787，`POST /import` + `GET /health` + CORS）+ `scripts/camscanner-share-download.mjs`（CLI）。前端「扫描全能王」按钮 → 桥 → `store.importPdf` 导入管线。
 - 页面拼合（ADR 0010）：选中 2 页 →「拼合」→ 上下/左右排版 + 「是否删除原两页」复选框 → composite 命令（删原两页 + 插入合成页）或单条 insert；合成页 = canvas 合成 + pdf-lib 单页 PDF + 合成源，零改动文档核心。
+- 插入页面（v0.2）：工具栏「插入」→ 弹窗（空白页数量 / 从 PDF 文件 + 插入位置：开头/末尾/选中页之后）→ `insertBlankPages` / `insertPdfAt`；空白页 = pdf-lib 生成单页空白 A4 缓存复用；PDF 页 = buildImportPayload + `insert` 命令。
 - 扫描件 spike（2026-08-20，3 份 CamScanner 真实样本，共 230 页）：全部为 JPEG（DCTDecode）编码；pdf-lib 单份复制+保存成功且体积几乎不变（约 1.00x）；三份合并 230 页耗时约 600ms、输出 157.7MB、旋转叠加正确。JPEG2000/CCITT/JBIG2 未在样本中出现，风险仍待其他来源样本验证。
 
 ## 已确认决策（2026-08-19）
@@ -41,7 +42,7 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
 
 ## 自动验证
 
-- `npm run test`：10 个测试文件、84 个测试通过（命令/撤销/重做/composite/LRU/fitScale/分组/筛选/dnd/落点预览/排版/导出计划/子集导出/页序映射）。
+- `npm run test`：11 个测试文件、85 个测试通过（命令/撤销/重做/composite/LRU/fitScale/分组/筛选/dnd/落点预览/排版/空白页/导出计划/子集导出/页序映射）。
 - `npm run build`：通过（pdf.js worker 独立 chunk 1.17MB，导出 worker 422KB，主包 693KB）。
 - `npm run lint`：通过（scripts/ 已加入忽略）。
 - `npx tsc -b`：通过。
@@ -56,8 +57,8 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
 
 ## 下一步（按顺序）
 
-1. 插入页面（v0.2）：从其他 PDF / 空白页插入（命令模型 `insert` 已预留）。
-2. 页码标注与卷内目录（v0.3）。
+1. v0.2 剩余：N 页拼合与「裁剪到标准卡尺寸（85.6×54mm，身份证）」，批量操作强化（部分已具备）。
+2. v0.3：页码标注、卷内目录生成、空白页/重复页检测。
 
 ## 待办 / 想法（未定，暂不施工）
 
