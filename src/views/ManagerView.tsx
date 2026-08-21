@@ -350,7 +350,7 @@ function SortablePage({
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`group relative cursor-grab rounded-lg border bg-white p-2 shadow-sm transition ${
+      className={`group relative cursor-grab rounded-none border bg-white p-1 shadow-sm transition ${
         selected ? 'border-blue-500 ring-2 ring-blue-500/60' : 'border-neutral-300 hover:border-neutral-400'
       } ${isDragging ? 'opacity-40' : ''}`}
     >
