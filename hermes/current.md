@@ -17,8 +17,8 @@ v0.1 完成；v0.2 进行中——插入页面已实现。剩余 v0.2：N 页拼
 - 文档核心（`src/core/`）：模型、可逆命令、撤销/重做、导入负载、选择器、分组纯函数（labels.ts）、拖拽排序纯函数（dnd.ts）。
 - 渲染边界（`src/render/`）：worker 单例 + 源注册表、renderPageToCanvas、fitScale、LRU、PageRenderer。
 - 状态接线（`src/store/useDocumentStore.ts`）：文档状态 + 历史 + 导入。
-- 阅读视图（`src/views/ReaderView.tsx`）：缩略图栏 + 大图 + 缩放/翻页。
-- 页面管理视图（`src/views/ManagerView.tsx`）：大缩略图网格、多选（单击/Cmd/Shift）、dnd-kit 拖动排序（单页/选中组）、拖拽落点插入指示符（蓝色插入线 + 落定页码，与 `computeDropPreview` 落点语义一致）、hover 旋转/删除、左侧分组面板、工具栏（全选/旋转/删除/分组到）。
+- 阅读视图（`src/views/ReaderView.tsx`）：缩略图栏 + 大图；浏览模式（单页 / 双页对开 / 连续滚动）+ 缩放（页宽 / 整页 / 100% / 自定义 ±，显示有效百分比）；双页对开排版纯函数 `spread.ts`。
+- 页面管理视图（`src/views/ManagerView.tsx`）：大缩略图网格、多选（单击/Cmd/Shift）、dnd-kit 拖动排序（单页/选中组）、拖拽落点插入指示符（蓝色插入线 + 落定页码，与 `computeDropPreview` 落点语义一致）、hover 旋转/删除、左侧分组面板、工具栏（全选/旋转/删除/分组到/拼合/插入）、空格大图预览（整页预览，左右键翻页，再按空格/点空白关闭）。
 - 分组（ADR 0008 标签派生）：label 存组名，组列表派生，颜色哈希，复用 relabel 命令。
 - 双视图切换（`src/App.tsx`）：页面管理 / 阅读。
 - 导出边界（`src/export/`）：导出计划（plan，含旋转归一化、文件名建议与子集 pageIds 支持）→ pdf-lib 组装（build，copyPages + 叠加旋转）→ Web Worker（export.worker，避免阻塞 UI）→ 下载（exporter，源字节经 `proxy.getData()` 取回并 transfer 移交 worker）；App 头部「导出」按钮 + 进度浮层 + 错误/成功提示；导出范围跟随当前筛选（页面管理视图：全部 / 未分组 / 某分组；阅读视图：全部），按钮标签随筛选变化（导出 / 导出未分组 / 导出「组名」）。
@@ -42,7 +42,7 @@ v0.1 完成；v0.2 进行中——插入页面已实现。剩余 v0.2：N 页拼
 
 ## 自动验证
 
-- `npm run test`：11 个测试文件、85 个测试通过（命令/撤销/重做/composite/LRU/fitScale/分组/筛选/dnd/落点预览/排版/空白页/导出计划/子集导出/页序映射）。
+- `npm run test`：12 个测试文件、93 个测试通过（命令/撤销/重做/composite/LRU/fitScale/分组/筛选/dnd/落点预览/排版/空白页/双页对开/导出计划/子集导出/页序映射）。
 - `npm run build`：通过（pdf.js worker 独立 chunk 1.17MB，导出 worker 422KB，主包 693KB）。
 - `npm run lint`：通过（scripts/ 已加入忽略）。
 - `npx tsc -b`：通过。

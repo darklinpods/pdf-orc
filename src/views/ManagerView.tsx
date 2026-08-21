@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -52,6 +52,7 @@ export function ManagerView({
   const [combineLayout, setCombineLayout] = useState<CombineLayout>('vertical');
   const [combineRemove, setCombineRemove] = useState(true);
   const [insertOpen, setInsertOpen] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const draggedRef = useRef<string[]>([]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -136,6 +137,34 @@ export function ManagerView({
     const targets = pages.filter((p) => selection.has(p.id));
     dispatch(relabelPagesCommand(targets, name));
   }
+
+  // 空格：选中页时打开/关闭大图预览；预览中左右键翻页。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+      const modalOpen = combineOpen || insertOpen;
+
+      if (e.key === ' ') {
+        if (typing || modalOpen) return;
+        e.preventDefault();
+        if (previewIndex !== null) {
+          setPreviewIndex(null);
+          return;
+        }
+        if (selection.size > 0) {
+          const idx = pages.findIndex((p) => selection.has(p.id));
+          if (idx >= 0) setPreviewIndex(idx);
+        }
+      } else if (previewIndex !== null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        const delta = e.key === 'ArrowLeft' ? -1 : 1;
+        setPreviewIndex((idx) => (idx === null ? idx : Math.min(Math.max(idx + delta, 0), pages.length - 1)));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [previewIndex, selection, pages, combineOpen, insertOpen]);
 
   return (
     <div className="flex h-full">
@@ -320,6 +349,17 @@ export function ManagerView({
             await insertPdfAt(file.name, buffer, index);
             setInsertOpen(false);
           }}
+        />
+      )}
+
+      {previewIndex !== null && pages[previewIndex] !== undefined && (
+        <PreviewOverlay
+          page={pages[previewIndex]}
+          index={previewIndex}
+          total={pages.length}
+          onClose={() => setPreviewIndex(null)}
+          onPrev={() => setPreviewIndex((i) => (i === null ? i : Math.max(0, i - 1)))}
+          onNext={() => setPreviewIndex((i) => (i === null ? i : Math.min(pages.length - 1, i + 1)))}
         />
       )}
     </div>
@@ -664,6 +704,77 @@ function InsertModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PreviewOverlay({
+  page,
+  index,
+  total,
+  onClose,
+  onPrev,
+  onNext,
+}: {
+  page: PageRef;
+  index: number;
+  total: number;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const width = Math.max(200, Math.round(window.innerWidth - 120));
+  const height = Math.max(200, Math.round(window.innerHeight - 120));
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/70" onClick={onClose}>
+      <div className="flex items-center justify-between px-4 py-2 text-sm text-white">
+        <span className="tabular-nums">
+          {index + 1} / {total}
+        </span>
+        <span className="text-xs text-white/70">← → 翻页 · 空格 / 点击空白关闭</span>
+        <button type="button" className="rounded bg-white/20 px-3 py-1 hover:bg-white/30" onClick={onClose}>
+          关闭
+        </button>
+      </div>
+      <div
+        className="flex flex-1 items-center justify-center overflow-hidden px-6 pb-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="overflow-hidden rounded shadow-2xl" style={{ width, height }} onClick={(e) => e.stopPropagation()}>
+          <PageRenderer
+            sourceId={page.sourceId}
+            pageIndex={page.sourcePageIndex}
+            rotation={page.rotation}
+            targetWidth={width}
+            targetHeight={height}
+            mode="full"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        </div>
+      </div>
+      <button
+        type="button"
+        className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/20 px-3 py-2 text-xl text-white hover:bg-white/30"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPrev();
+        }}
+        disabled={index === 0}
+      >
+        ‹
+      </button>
+      <button
+        type="button"
+        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/20 px-3 py-2 text-xl text-white hover:bg-white/30"
+        onClick={(e) => {
+          e.stopPropagation();
+          onNext();
+        }}
+        disabled={index === total - 1}
+      >
+        ›
+      </button>
     </div>
   );
 }

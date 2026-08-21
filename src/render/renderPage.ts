@@ -77,3 +77,24 @@ export async function renderPageToCanvas(req: RenderPageRequest): Promise<Render
   }
   return { canvas, width, height, scale };
 }
+
+/**
+ * 取页面在 scale=1 下的自然尺寸（含源固有旋转与用户旋转，单位 pt=px）。
+ * 用于阅读视图的「100% / 整页 / 页宽」缩放与双页排版计算。
+ */
+export async function getNaturalPageSize(
+  sourceId: string,
+  pageIndex: number,
+  rotation: Rotation,
+): Promise<{ width: number; height: number }> {
+  const source = pdfSourceManager.get(sourceId);
+  if (source === undefined) {
+    throw new Error(`源未打开：${sourceId}，请先导入文件`);
+  }
+  const page = await source.proxy.getPage(pageIndex + 1);
+  const viewport = page.getViewport({
+    scale: 1,
+    rotation: (page.rotate + rotation) % 360,
+  });
+  return { width: viewport.width, height: viewport.height };
+}
