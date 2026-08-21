@@ -79,20 +79,6 @@ export function useDocumentStore(): DocumentStore {
     });
   }, []);
 
-  const importFiles = useCallback(async (files: File[]) => {
-    setImporting(true);
-    setImportError(null);
-    for (const file of files) {
-      try {
-        const buffer = await file.arrayBuffer();
-        await importOne(file.name, buffer);
-      } catch (err) {
-        setImportError(err instanceof Error ? `${file.name}：${err.message}` : `${file.name}：导入失败`);
-      }
-    }
-    setImporting(false);
-  }, []);
-
   const importOne = useCallback(async (name: string, buffer: ArrayBuffer) => {
     const sourceId = nextSourceId(name);
     // 打开源（pdf.js 解析），拿到实际页数。
@@ -103,6 +89,23 @@ export function useDocumentStore(): DocumentStore {
       return { document: next.state, history: next.history };
     });
   }, []);
+
+  const importFiles = useCallback(
+    async (files: File[]) => {
+      setImporting(true);
+      setImportError(null);
+      for (const file of files) {
+        try {
+          const buffer = await file.arrayBuffer();
+          await importOne(file.name, buffer);
+        } catch (err) {
+          setImportError(err instanceof Error ? `${file.name}：${err.message}` : `${file.name}：导入失败`);
+        }
+      }
+      setImporting(false);
+    },
+    [importOne],
+  );
 
   const importPdf = useCallback(
     async (name: string, buffer: ArrayBuffer) => {

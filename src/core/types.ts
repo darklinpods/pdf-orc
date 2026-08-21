@@ -38,12 +38,6 @@ export interface DocumentState {
   nextPageId: number;
 }
 
-export const EMPTY_DOCUMENT: DocumentState = {
-  pages: [],
-  sources: [],
-  nextPageId: 1,
-};
-
 /** 返回一个全新的空文档（避免共享可变对象）。 */
 export function emptyDocument(): DocumentState {
   return { pages: [], sources: [], nextPageId: 1 };

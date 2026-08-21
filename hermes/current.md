@@ -62,6 +62,12 @@ v0.1 完成；v0.2 进行中——插入页面已实现。剩余 v0.2：N 页拼
 
 ## 待办 / 想法（未定，暂不施工）
 
+- 代码审查（2026-08-20，🟡 中价值重构，尚未做）：
+  1. `src/views/ManagerView.tsx`（962 行，7 个组件）拆到 `src/views/manager/` 子目录，每个弹窗独立成文件。
+  2. `src/App.tsx`（367 行）抽 `useCamImport` hook + 弹窗移 `src/components/`。
+  3. `clamp` 函数重复（commands.ts / ReaderView.tsx / ManagerView 内联），抽共享 `src/util.ts`。
+  - （🔴 已清理：删除死代码 `src/core/document.ts` 与 `EMPTY_DOCUMENT`；修正 useDocumentStore 的 importOne 声明顺序与 deps。）
+
 - 分组排序（2026-08-20 讨论，尚未定稿）：
   - 需求：能否给分组（左栏）单独排序。
   - 结论（设计）：分组顺序与页面顺序是正交的两个维度，各司其职——页面顺序（PageList 唯一事实源）管最终页序与「全部/导出全部」；分组顺序仅管左栏显示顺序与未来的「按分组导出/卷内目录」组排列。组合规则 = 组序（外层）× 组内页序（内层）；绝不覆盖最终页序。
