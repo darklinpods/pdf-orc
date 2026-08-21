@@ -16,6 +16,8 @@ import { collectGroups, filterPages, groupColor, relabelPagesCommand, type PageF
 import { computeDropPreview, computeReorderForDrop, sortedDraggedIds, type DropPreview } from '../core/dnd';
 import type { CombineOptions } from '../combine/combinePages';
 import type { CombineLayout } from '../combine/layout';
+import { buildDirectory, type DirectoryItem } from '../evidence/classify';
+import { ocrDocument } from '../evidence/ocr';
 import { LazyMount } from '../components/LazyMount';
 import { PageRenderer } from '../render/PageRenderer';
 
@@ -57,6 +59,10 @@ export function ManagerView({
   const [combineRemove, setCombineRemove] = useState(true);
   const [insertOpen, setInsertOpen] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [dirOpen, setDirOpen] = useState(false);
+  const [dirBusy, setDirBusy] = useState(false);
+  const [dirItems, setDirItems] = useState<DirectoryItem[]>([]);
+  const [dirError, setDirError] = useState<string | null>(null);
   const draggedRef = useRef<string[]>([]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -140,6 +146,36 @@ export function ManagerView({
     if (selection.size === 0) return;
     const targets = pages.filter((p) => selection.has(p.id));
     dispatch(relabelPagesCommand(targets, name));
+  }
+
+  async function generateDirectory() {
+    if (pages.length === 0) return;
+    setDirBusy(true);
+    setDirError(null);
+    try {
+      const pageTexts = await ocrDocument(document);
+      const texts = pages.map((p) => pageTexts.get(p.id) ?? '');
+      setDirItems(buildDirectory(texts));
+      setDirOpen(true);
+    } catch (err) {
+      setDirError(err instanceof Error ? err.message : '生成证据目录失败');
+    } finally {
+      setDirBusy(false);
+    }
+  }
+
+  function applyDirectory(items: DirectoryItem[]) {
+    const labels: Array<{ pageId: string; from: string | null; to: string | null }> = [];
+    for (const item of items) {
+      const name = item.name.trim();
+      for (let p = item.start; p <= item.end; p++) {
+        const page = pages[p - 1];
+        if (page === undefined) continue;
+        labels.push({ pageId: page.id, from: page.label, to: name === '' ? null : name });
+      }
+    }
+    if (labels.length > 0) dispatch({ kind: 'relabel', labels });
+    setDirOpen(false);
   }
 
   // 空格：选中页时打开/关闭大图预览；预览中左右键翻页。
@@ -243,6 +279,15 @@ export function ManagerView({
           >
             {exporting ? '导出中…' : `导出选中${selection.size > 0 ? `（${selection.size}）` : ''}`}
           </button>
+          <button
+            type="button"
+            className="rounded border border-neutral-300 px-2 py-1 hover:bg-neutral-100 disabled:opacity-40"
+            disabled={dirBusy}
+            onClick={() => void generateDirectory()}
+            title="OCR 全文并按证据类别自动生成目录，校对后给页面打标签"
+          >
+            {dirBusy ? '识别中…' : '生成证据目录'}
+          </button>
           <span className="mx-1 h-4 w-px bg-neutral-300" />
           <label className="flex items-center gap-1 text-neutral-600">
             分组到
@@ -276,6 +321,10 @@ export function ManagerView({
             已选 {selection.size} 页 · 共 {pages.length} 页
           </span>
         </div>
+
+        {dirError !== null && (
+          <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{dirError}</div>
+        )}
 
         <div className="flex-1 overflow-y-auto bg-neutral-200/60 p-4">
           {filter !== 'all' && (
@@ -373,6 +422,15 @@ export function ManagerView({
           onClose={() => setPreviewIndex(null)}
           onPrev={() => setPreviewIndex((i) => (i === null ? i : Math.max(0, i - 1)))}
           onNext={() => setPreviewIndex((i) => (i === null ? i : Math.min(pages.length - 1, i + 1)))}
+        />
+      )}
+
+      {dirOpen && (
+        <DirectoryModal
+          initialItems={dirItems}
+          pageCount={pages.length}
+          onClose={() => setDirOpen(false)}
+          onApply={applyDirectory}
         />
       )}
     </div>
@@ -788,6 +846,111 @@ function PreviewOverlay({
       >
         ›
       </button>
+    </div>
+  );
+}
+
+function DirectoryModal({
+  initialItems,
+  pageCount,
+  onClose,
+  onApply,
+}: {
+  initialItems: DirectoryItem[];
+  pageCount: number;
+  onClose: () => void;
+  onApply: (items: DirectoryItem[]) => void;
+}) {
+  const [items, setItems] = useState<DirectoryItem[]>(initialItems.map((i) => ({ ...i })));
+  const [error, setError] = useState<string | null>(null);
+
+  function update(index: number, patch: Partial<DirectoryItem>) {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
+  }
+  function remove(index: number) {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  }
+  function add() {
+    setItems((prev) => [...prev, { name: '', start: pageCount, end: pageCount }]);
+  }
+
+  function apply() {
+    for (const it of items) {
+      if (!Number.isInteger(it.start) || !Number.isInteger(it.end) || it.start < 1 || it.end > pageCount || it.start > it.end) {
+        setError(`页码范围非法：「${it.name || '未命名'}」${it.start}-${it.end}（应在 1-${pageCount} 之间）`);
+        return;
+      }
+    }
+    onApply(items);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="flex max-h-[85vh] w-[34rem] flex-col rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="border-b border-neutral-200 px-5 py-3">
+          <h2 className="text-base font-semibold text-neutral-800">校对证据目录</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            自动生成的目录草案，可改名、改页码范围、增删项；确认后按目录给页面打标签。
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          <div className="mb-2 grid grid-cols-[1fr_3.5rem_3.5rem_2rem] gap-2 text-xs text-neutral-400">
+            <span>证据项名称</span>
+            <span className="text-right">起页</span>
+            <span className="text-right">止页</span>
+            <span />
+          </div>
+          {items.map((it, i) => (
+            <div key={i} className="mb-2 grid grid-cols-[1fr_3.5rem_3.5rem_2rem] items-center gap-2">
+              <input
+                type="text"
+                value={it.name}
+                onChange={(e) => update(i, { name: e.target.value })}
+                className="rounded border border-neutral-300 px-2 py-1 text-sm"
+                placeholder="证据项名称"
+              />
+              <input
+                type="number"
+                min={1}
+                max={pageCount}
+                value={it.start}
+                onChange={(e) => update(i, { start: Number(e.target.value) })}
+                className="rounded border border-neutral-300 px-1 py-1 text-right text-sm"
+              />
+              <input
+                type="number"
+                min={1}
+                max={pageCount}
+                value={it.end}
+                onChange={(e) => update(i, { end: Number(e.target.value) })}
+                className="rounded border border-neutral-300 px-1 py-1 text-right text-sm"
+              />
+              <button
+                type="button"
+                className="rounded px-1 py-1 text-neutral-400 hover:bg-neutral-100 hover:text-red-600"
+                onClick={() => remove(i)}
+                title="删除此项"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button type="button" className="mt-1 rounded border border-dashed border-neutral-300 px-3 py-1 text-sm text-neutral-500 hover:bg-neutral-50" onClick={add}>
+            ＋ 添加一项
+          </button>
+          {error !== null && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-neutral-200 px-5 py-3">
+          <button type="button" className="rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100" onClick={onClose}>
+            取消
+          </button>
+          <button type="button" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700" onClick={apply}>
+            应用标签
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

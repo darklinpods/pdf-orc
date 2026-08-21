@@ -3,12 +3,11 @@ import { useDocumentStore } from './store/useDocumentStore';
 import { exportDocument, type ExportProgress } from './export/exporter';
 import { sanitizeFilename } from './export/plan';
 import { filterPages, type PageFilter } from './core/labels';
+import { BRIDGE_URL } from './bridge';
 import { ReaderView } from './views/ReaderView';
 import { ManagerView } from './views/ManagerView';
 
 type Mode = 'reader' | 'manager';
-
-const BRIDGE_URL = 'http://127.0.0.1:8787';
 
 /** 把 ISO UTC 时间戳格式化为本地时间（精确到秒）。 */
 function formatTimestamp(iso: string): string {
