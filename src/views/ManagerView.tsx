@@ -239,9 +239,15 @@ export function ManagerView({
           <button
             type="button"
             className="rounded border border-neutral-300 px-2 py-1 hover:bg-neutral-100"
-            onClick={() => setSelection(selection.size === pages.length ? new Set() : new Set(pages.map((p) => p.id)))}
+            onClick={() =>
+              setSelection(
+                selection.size === visiblePages.length
+                  ? new Set()
+                  : new Set(visiblePages.map((p) => p.id)),
+              )
+            }
           >
-            {selection.size === pages.length && pages.length > 0 ? '取消全选' : '全选'}
+            {selection.size === visiblePages.length && visiblePages.length > 0 ? '取消全选' : '全选'}
           </button>
           <span className="mx-1 h-4 w-px bg-neutral-300" />
           <button type="button" className="rounded border border-neutral-300 px-2 py-1 hover:bg-neutral-100 disabled:opacity-40" disabled={selection.size === 0} onClick={() => rotateSelected(-90)}>
