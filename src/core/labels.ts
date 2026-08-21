@@ -59,3 +59,13 @@ export function relabelPagesCommand(pages: PageRef[], to: string | null): Relabe
     labels: pages.map((p) => ({ pageId: p.id, from: p.label, to })),
   };
 }
+
+/** 页面管理视图的筛选维度：'all' 全部、'unlabeled' 未分组、其余为分组名。 */
+export type PageFilter = 'all' | 'unlabeled' | string;
+
+/** 按筛选条件过滤页面（保持原相对顺序）。 */
+export function filterPages(pages: PageRef[], filter: PageFilter): PageRef[] {
+  if (filter === 'all') return pages;
+  if (filter === 'unlabeled') return pages.filter((p) => p.label === null);
+  return pages.filter((p) => p.label === filter);
+}

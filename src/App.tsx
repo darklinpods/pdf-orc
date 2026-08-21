@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { useDocumentStore } from './store/useDocumentStore';
 import { exportDocument, type ExportProgress } from './export/exporter';
+import { sanitizeFilename } from './export/plan';
+import { filterPages, type PageFilter } from './core/labels';
 import { ReaderView } from './views/ReaderView';
 import { ManagerView } from './views/ManagerView';
 
@@ -19,6 +21,7 @@ export default function App() {
   const store = useDocumentStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<Mode>('manager');
+  const [filter, setFilter] = useState<PageFilter>('all');
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -28,6 +31,16 @@ export default function App() {
   const [camBusy, setCamBusy] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
   const pageCount = store.document.pages.length;
+
+  // 导出范围：页面管理视图按当前筛选（分组/未分组）导出，阅读视图导出全部。
+  const exportPages = mode === 'manager' ? filterPages(store.document.pages, filter) : store.document.pages;
+  const exportCount = exportPages.length;
+  const exportLabel =
+    mode === 'manager' && filter !== 'all'
+      ? filter === 'unlabeled'
+        ? '导出未分组'
+        : `导出「${filter}」`
+      : '导出';
 
   const onPickFiles = (files: FileList | null) => {
     if (files === null || files.length === 0) return;
@@ -72,12 +85,23 @@ export default function App() {
   };
 
   const onExport = async () => {
+    const pageIds = exportPages.map((p) => p.id);
+    const filename =
+      mode === 'manager' && filter !== 'all'
+        ? filter === 'unlabeled'
+          ? '未分组-整理.pdf'
+          : `${sanitizeFilename(filter)}-整理.pdf`
+        : undefined;
     setExporting(true);
     setExportError(null);
     setExported(false);
-    setExportProgress({ done: 0, total: pageCount });
+    setExportProgress({ done: 0, total: exportCount });
     try {
-      await exportDocument(store.document, setExportProgress);
+      await exportDocument(store.document, {
+        onProgress: setExportProgress,
+        pageIds,
+        filename,
+      });
       setExported(true);
       window.setTimeout(() => setExported(false), 3000);
     } catch (err) {
@@ -148,9 +172,10 @@ export default function App() {
             type="button"
             className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
             onClick={() => void onExport()}
-            disabled={pageCount === 0 || exporting}
+            disabled={exportCount === 0 || exporting}
+            title={exportCount < pageCount ? `导出当前筛选的 ${exportCount} 页` : undefined}
           >
-            {exporting ? '导出中…' : '导出'}
+            {exporting ? '导出中…' : exportLabel}
           </button>
         </div>
       </header>
@@ -223,6 +248,8 @@ export default function App() {
             dispatch={store.dispatch}
             combinePages={store.combinePages}
             combining={store.combining}
+            filter={filter}
+            onFilterChange={setFilter}
           />
         )}
       </div>

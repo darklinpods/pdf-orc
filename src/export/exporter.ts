@@ -9,18 +9,30 @@ export interface ExportProgress {
   total: number;
 }
 
+/** 导出选项。 */
+export interface ExportOptions {
+  onProgress?: (progress: ExportProgress) => void;
+  /** 只导出这些页面 id（保持给定顺序）；缺省导出全部。 */
+  pageIds?: string[];
+  /** 覆盖建议文件名（如按分组导出时用组名）。 */
+  filename?: string;
+}
+
 /**
- * 导出当前文档为单份 PDF 并触发下载。
+ * 导出文档为单份 PDF 并触发下载。
  * 流程：构建计划 → 从 pdf.js worker 取回各源原始字节 → 交给导出 worker（pdf-lib）
- * 组装并保存 → 下载。全程不阻塞主线程，进度通过 onProgress 回调。
+ * 组装并保存 → 下载。全程不阻塞主线程，进度通过 options.onProgress 回调。
  */
 export async function exportDocument(
   document: DocumentState,
-  onProgress?: (progress: ExportProgress) => void,
+  options: ExportOptions = {},
 ): Promise<void> {
-  const plan = buildExportPlan(document);
+  const plan = buildExportPlan(document, {
+    pageIds: options.pageIds,
+    filename: options.filename,
+  });
   if (plan.pages.length === 0) {
-    throw new Error('没有可导出的页面，请先导入 PDF');
+    throw new Error('没有可导出的页面，请先导入 PDF 或选择分组');
   }
 
   // 从渲染边界取回各源原始字节（proxy.getData 从 worker 拉回，不常驻双份拷贝）。
@@ -37,7 +49,7 @@ export async function exportDocument(
 
   const worker = new ExportWorker();
   try {
-    const data = await runWorker(worker, { sources, pages: plan.pages }, onProgress);
+    const data = await runWorker(worker, { sources, pages: plan.pages }, options.onProgress);
     downloadPdf(data, plan.filename);
   } finally {
     worker.terminate();

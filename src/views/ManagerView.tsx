@@ -12,30 +12,36 @@ import {
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import type { Command } from '../core/commands';
 import type { DocumentState, PageRef } from '../core/types';
-import { collectGroups, groupColor, relabelPagesCommand } from '../core/labels';
+import { collectGroups, filterPages, groupColor, relabelPagesCommand, type PageFilter } from '../core/labels';
 import { computeDropPreview, computeReorderForDrop, sortedDraggedIds, type DropPreview } from '../core/dnd';
 import type { CombineOptions } from '../combine/combinePages';
 import type { CombineLayout } from '../combine/layout';
 import { LazyMount } from '../components/LazyMount';
 import { PageRenderer } from '../render/PageRenderer';
 
-type Filter = 'all' | 'unlabeled' | string;
-
 export interface ManagerViewProps {
   document: DocumentState;
   dispatch: (command: Command, mergeKey?: string | null) => void;
   combinePages: (pageIds: string[], options: CombineOptions) => Promise<void>;
   combining: boolean;
+  filter: PageFilter;
+  onFilterChange: (filter: PageFilter) => void;
 }
 
 const THUMB = 170;
 
-export function ManagerView({ document, dispatch, combinePages, combining }: ManagerViewProps) {
+export function ManagerView({
+  document,
+  dispatch,
+  combinePages,
+  combining,
+  filter,
+  onFilterChange,
+}: ManagerViewProps) {
   const pages = document.pages;
   const groups = useMemo(() => collectGroups(pages), [pages]);
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [anchorId, setAnchorId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>('all');
   const [dragCount, setDragCount] = useState(0);
   const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const [combineOpen, setCombineOpen] = useState(false);
@@ -45,11 +51,7 @@ export function ManagerView({ document, dispatch, combinePages, combining }: Man
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const visiblePages = useMemo(() => {
-    if (filter === 'all') return pages;
-    if (filter === 'unlabeled') return pages.filter((p) => p.label === null);
-    return pages.filter((p) => p.label === filter);
-  }, [pages, filter]);
+  const visiblePages = useMemo(() => filterPages(pages, filter), [pages, filter]);
 
   const order = useMemo(() => pages.map((p) => p.id), [pages]);
   const visibleIds = useMemo(() => visiblePages.map((p) => p.id), [visiblePages]);
@@ -138,8 +140,8 @@ export function ManagerView({ document, dispatch, combinePages, combining }: Man
           分组
         </div>
         <nav className="flex-1 overflow-y-auto p-2 text-sm">
-          <FilterItem active={filter === 'all'} label="全部" count={pages.length} onClick={() => setFilter('all')} />
-          <FilterItem active={filter === 'unlabeled'} label="未分组" count={unlabeledCount} onClick={() => setFilter('unlabeled')} />
+          <FilterItem active={filter === 'all'} label="全部" count={pages.length} onClick={() => onFilterChange('all')} />
+          <FilterItem active={filter === 'unlabeled'} label="未分组" count={unlabeledCount} onClick={() => onFilterChange('unlabeled')} />
           <div className="my-2 border-t border-neutral-200" />
           {groups.map((g) => (
             <FilterItem
@@ -148,7 +150,7 @@ export function ManagerView({ document, dispatch, combinePages, combining }: Man
               label={g.name}
               count={g.count}
               color={g.color}
-              onClick={() => setFilter(filter === g.name ? 'all' : g.name)}
+              onClick={() => onFilterChange(filter === g.name ? 'all' : g.name)}
             />
           ))}
           {groups.length === 0 && (

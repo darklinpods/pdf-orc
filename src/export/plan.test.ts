@@ -4,6 +4,7 @@ import {
   buildExportPlan,
   combineRotation,
   normalizeRotation,
+  sanitizeFilename,
   suggestExportFilename,
 } from './plan';
 
@@ -102,5 +103,49 @@ describe('buildExportPlan', () => {
       sources: [{ id: 'a', name: 'a.pdf', pageCount: 3 }],
     });
     expect(() => buildExportPlan(d)).toThrow(/越界/);
+  });
+
+  it('pageIds 只导出指定页并保持给定顺序', () => {
+    const d = doc({
+      pages: [
+        { id: '1', sourceId: 'a', sourcePageIndex: 0, rotation: 0, label: null },
+        { id: '2', sourceId: 'b', sourcePageIndex: 0, rotation: 90, label: null },
+        { id: '3', sourceId: 'a', sourcePageIndex: 1, rotation: 0, label: null },
+      ],
+      sources: [
+        { id: 'a', name: 'a.pdf', pageCount: 2 },
+        { id: 'b', name: 'b.pdf', pageCount: 1 },
+      ],
+    });
+    const plan = buildExportPlan(d, { pageIds: ['3', '2'] });
+    expect(plan.sourceIds).toEqual(['a', 'b']);
+    expect(plan.pages).toEqual([
+      { sourceId: 'a', sourcePageIndex: 1, rotation: 0 },
+      { sourceId: 'b', sourcePageIndex: 0, rotation: 90 },
+    ]);
+  });
+
+  it('filename 覆盖建议文件名', () => {
+    const d = doc({
+      pages: [{ id: '1', sourceId: 'a', sourcePageIndex: 0, rotation: 0, label: null }],
+      sources: [{ id: 'a', name: 'a.pdf', pageCount: 1 }],
+    });
+    expect(buildExportPlan(d, { pageIds: ['1'], filename: '证据-整理.pdf' }).filename).toBe('证据-整理.pdf');
+  });
+
+  it('pageIds 引用不存在页面时抛出中文错误', () => {
+    const d = doc({
+      pages: [{ id: '1', sourceId: 'a', sourcePageIndex: 0, rotation: 0, label: null }],
+      sources: [{ id: 'a', name: 'a.pdf', pageCount: 1 }],
+    });
+    expect(() => buildExportPlan(d, { pageIds: ['ghost'] })).toThrow(/页面不存在/);
+  });
+});
+
+describe('sanitizeFilename', () => {
+  it('清理非法字符与扩展名，空则回退', () => {
+    expect(sanitizeFilename('事故/认定:书.pdf')).toBe('事故_认定_书');
+    expect(sanitizeFilename('   ')).toBe('案卷');
+    expect(sanitizeFilename('证据')).toBe('证据');
   });
 });

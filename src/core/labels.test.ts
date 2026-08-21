@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyDocument, type PageRef } from './types';
 import { apply } from './commands';
 import { importCommand } from './sources';
-import { collectGroups, groupColor, relabelPagesCommand } from './labels';
+import { collectGroups, filterPages, groupColor, relabelPagesCommand } from './labels';
 
 function pages(labels: Array<string | null>): PageRef[] {
   const base = emptyDocument();
@@ -32,6 +32,26 @@ describe('groupColor', () => {
     expect(groupColor('认定书')).toBe(groupColor('认定书'));
     // 多次调用稳定
     expect(groupColor('保险单')).toBe(groupColor('保险单'));
+  });
+});
+
+describe('filterPages', () => {
+  const ps = pages(['认定书', null, '认定书', '保险单', null]);
+
+  it('all 返回全部', () => {
+    expect(filterPages(ps, 'all')).toHaveLength(5);
+  });
+
+  it('unlabeled 只返回未分组页', () => {
+    expect(filterPages(ps, 'unlabeled').map((p) => p.label)).toEqual([null, null]);
+  });
+
+  it('按组名过滤并保持相对顺序', () => {
+    expect(filterPages(ps, '认定书').map((p) => p.id)).toEqual([ps[0].id, ps[2].id]);
+  });
+
+  it('不存在的组名返回空', () => {
+    expect(filterPages(ps, '不存在')).toEqual([]);
   });
 });
 
