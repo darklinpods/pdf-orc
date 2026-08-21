@@ -21,7 +21,7 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
 - 页面管理视图（`src/views/ManagerView.tsx`）：大缩略图网格、多选（单击/Cmd/Shift）、dnd-kit 拖动排序（单页/选中组）、拖拽落点插入指示符（蓝色插入线 + 落定页码，与 `computeDropPreview` 落点语义一致）、hover 旋转/删除、左侧分组面板、工具栏（全选/旋转/删除/分组到）。
 - 分组（ADR 0008 标签派生）：label 存组名，组列表派生，颜色哈希，复用 relabel 命令。
 - 双视图切换（`src/App.tsx`）：页面管理 / 阅读。
-- 导出边界（`src/export/`）：导出计划（plan，含旋转归一化与文件名建议）→ pdf-lib 组装（build，copyPages + 叠加旋转）→ Web Worker（export.worker，避免阻塞 UI）→ 下载（exporter，源字节经 `proxy.getData()` 取回并 transfer 移交 worker）；App 头部「导出」按钮 + 进度浮层 + 错误/成功提示。
+- 导出边界（`src/export/`）：导出计划（plan，含旋转归一化、文件名建议与子集 pageIds 支持）→ pdf-lib 组装（build，copyPages + 叠加旋转）→ Web Worker（export.worker，避免阻塞 UI）→ 下载（exporter，源字节经 `proxy.getData()` 取回并 transfer 移交 worker）；App 头部「导出」按钮 + 进度浮层 + 错误/成功提示；导出范围跟随当前筛选（页面管理视图：全部 / 未分组 / 某分组；阅读视图：全部），按钮标签随筛选变化（导出 / 导出未分组 / 导出「组名」）。
 - 分组不强制顺序；拖动排序仅在「全部」视图开放（筛选视图只读）。
 - 版本时间戳（开发辅助）：页头显示 `v0.1 · <本地时间 精确到秒>`，由 vite `define` 在 dev server 启动/构建时注入 `__BUILD_TIME__`。
 - CamScanner 分享链接导入（ADR 0009）：`scripts/camscanner-share-lib.mjs`（分享→PDF 共享逻辑，公开分享免登录）+ `scripts/camscanner-bridge.mjs`（本地 HTTP 桥，127.0.0.1:8787，`POST /import` + `GET /health` + CORS）+ `scripts/camscanner-share-download.mjs`（CLI）。前端「扫描全能王」按钮 → 桥 → `store.importPdf` 导入管线。
@@ -40,7 +40,7 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
 
 ## 自动验证
 
-- `npm run test`：10 个测试文件、76 个测试通过（命令/撤销/重做/composite/LRU/fitScale/分组/dnd/落点预览/排版/导出计划/页序映射）。
+- `npm run test`：10 个测试文件、84 个测试通过（命令/撤销/重做/composite/LRU/fitScale/分组/筛选/dnd/落点预览/排版/导出计划/子集导出/页序映射）。
 - `npm run build`：通过（pdf.js worker 独立 chunk 1.17MB，导出 worker 422KB，主包 693KB）。
 - `npm run lint`：通过（scripts/ 已加入忽略）。
 - `npx tsc -b`：通过。
@@ -64,6 +64,12 @@ v0.1（MVP）完成：脚手架、文档核心、渲染边界、阅读视图、�
   - 需求：扫描卷里混有「不作为证据提交」的页（身份证正反面、起诉状、委托书等），需保留但不可提交；要能「只看证据 / 看全部」切换，并把证据页按证据目录顺序单独导出提交。
   - 拟议方案：`PageRef` 加 `submitted: boolean` 标记 + 可逆命令 `markSubmitted` + 工具栏「全部/仅证据」切换 + 「导出证据」子集导出；证据顺序 = 这些页在总列表的相对顺序（单一顺序模型）。
   - 未决：① 新导入页默认「证据」还是「非证据」；② 证据顺序用「单一顺序」还是「独立证据顺序」。
+
+- 分组排序（2026-08-20 讨论，尚未定稿）：
+  - 需求：能否给分组（左栏）单独排序。
+  - 结论（设计）：分组顺序与页面顺序是正交的两个维度，各司其职——页面顺序（PageList 唯一事实源）管最终页序与「全部/导出全部」；分组顺序仅管左栏显示顺序与未来的「按分组导出/卷内目录」组排列。组合规则 = 组序（外层）× 组内页序（内层）；绝不覆盖最终页序。
+  - 拟议实现：`DocumentState.groupOrder: string[]` + 可逆命令 `setGroupOrder` + `collectGroups` 按 groupOrder 排序（新组追加末尾）+ 左栏 dnd 拖拽；需处理改名同步、删组移除、撤销一致。
+  - 未决：是否要做、何时做（用户先考虑成熟）。
 
 ## 关注点
 
