@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DocumentState, PageRef } from '../core/types';
+import { clamp } from '../core/util';
 import { PageRenderer } from '../render/PageRenderer';
 import { getNaturalPageSize } from '../render/renderPage';
 import { LazyMount } from '../components/LazyMount';
@@ -15,10 +16,6 @@ type ZoomMode = 'fit-width' | 'fit-page' | 'actual' | 'custom';
 const MIN_PCT = 25;
 const MAX_PCT = 400;
 const ZOOM_STEP = 10;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
 
 function pageKey(p: PageRef): string {
   return `${p.sourceId}:${p.sourcePageIndex}:${p.rotation}`;

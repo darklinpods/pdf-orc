@@ -1,4 +1,5 @@
 import type { DocumentState, PageRef, Rotation, SourceRef } from './types';
+import { clamp } from './util';
 
 /** 旋转增量：右旋 90°、左旋 90°、180°。 */
 export type RotateDelta = 90 | -90 | 180;
@@ -102,10 +103,6 @@ export function applyRotation(rotation: Rotation, delta: RotateDelta): Rotation 
 export function negateDelta(delta: RotateDelta): RotateDelta {
   if (delta === 180) return 180;
   return delta === 90 ? -90 : 90;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
 
 /** 根据新分配页面的 id 推进 nextPageId，保证单调递增、不重用。 */

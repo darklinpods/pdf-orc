@@ -3,9 +3,11 @@ import { useDocumentStore } from './store/useDocumentStore';
 import { exportDocument, type ExportProgress } from './export/exporter';
 import { sanitizeFilename } from './export/plan';
 import { filterPages, type PageFilter } from './core/labels';
-import { BRIDGE_URL } from './bridge';
+import { useCamImport } from './hooks/useCamImport';
+import { ExportOverlay } from './components/ExportOverlay';
+import { CamImportModal } from './components/CamImportModal';
 import { ReaderView } from './views/ReaderView';
-import { ManagerView } from './views/ManagerView';
+import { ManagerView } from './views/manager/ManagerView';
 
 type Mode = 'reader' | 'manager';
 
@@ -25,10 +27,7 @@ export default function App() {
   const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exported, setExported] = useState(false);
-  const [camOpen, setCamOpen] = useState(false);
-  const [camUrl, setCamUrl] = useState('');
-  const [camBusy, setCamBusy] = useState(false);
-  const [camError, setCamError] = useState<string | null>(null);
+  const cam = useCamImport(store.importPdf);
   const pageCount = store.document.pages.length;
 
   // 导出范围：页面管理视图按当前筛选（分组/未分组）导出，阅读视图导出全部。
@@ -44,43 +43,6 @@ export default function App() {
   const onPickFiles = (files: FileList | null) => {
     if (files === null || files.length === 0) return;
     void store.importFiles(Array.from(files));
-  };
-
-  const importFromCamScanner = async () => {
-    const url = camUrl.trim();
-    if (url === '') return;
-    setCamBusy(true);
-    setCamError(null);
-    try {
-      const res = await fetch(`${BRIDGE_URL}/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      if (!res.ok) {
-        let message = `桥接服务返回 HTTP ${res.status}`;
-        try {
-          const data = (await res.json()) as { error?: string };
-          if (data.error) message = data.error;
-        } catch {
-          /* 非 JSON 响应，保留默认消息 */
-        }
-        throw new Error(message);
-      }
-      const filename = decodeURIComponent(res.headers.get('X-Pdf-Filename') || '扫描全能王-分享.pdf');
-      const buffer = await res.arrayBuffer();
-      await store.importPdf(filename, buffer);
-      setCamOpen(false);
-      setCamUrl('');
-    } catch (err) {
-      if (err instanceof TypeError) {
-        setCamError('无法连接桥接服务，请先在项目目录运行「npm run bridge」');
-      } else {
-        setCamError(err instanceof Error ? err.message : '导入失败');
-      }
-    } finally {
-      setCamBusy(false);
-    }
   };
 
   const doExport = async (pageIds: string[], filename?: string) => {
@@ -170,7 +132,7 @@ export default function App() {
           <button
             type="button"
             className="rounded border border-blue-300 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 disabled:opacity-50"
-            onClick={() => setCamOpen(true)}
+            onClick={cam.openCam}
             disabled={store.importing}
             title="从扫描全能王分享链接导入"
           >
@@ -208,16 +170,14 @@ export default function App() {
 
       {exporting && <ExportOverlay progress={exportProgress} />}
 
-      {camOpen && (
+      {cam.camOpen && (
         <CamImportModal
-          url={camUrl}
-          busy={camBusy || store.importing}
-          error={camError}
-          onUrlChange={setCamUrl}
-          onSubmit={() => void importFromCamScanner()}
-          onClose={() => {
-            if (!camBusy) setCamOpen(false);
-          }}
+          url={cam.camUrl}
+          busy={cam.camBusy || store.importing}
+          error={cam.camError}
+          onUrlChange={cam.setCamUrl}
+          onSubmit={() => void cam.importFromCamScanner()}
+          onClose={cam.closeCam}
         />
       )}
 
@@ -288,80 +248,5 @@ function ModeButton({
     >
       {children}
     </button>
-  );
-}
-
-function ExportOverlay({ progress }: { progress: ExportProgress | null }) {
-  const total = progress?.total ?? 0;
-  const percent = total > 0 ? Math.round(((progress?.done ?? 0) / total) * 100) : 0;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="w-80 rounded-lg bg-white p-5 shadow-xl">
-        <p className="mb-3 text-sm font-medium text-neutral-700">正在导出 PDF…</p>
-        <div className="h-2 w-full overflow-hidden rounded bg-neutral-200">
-          <div className="h-full bg-green-600 transition-all" style={{ width: `${percent}%` }} />
-        </div>
-        <p className="mt-2 text-xs tabular-nums text-neutral-500">
-          {total > 0 ? `已复制 ${progress?.done ?? 0}/${total} 页` : '正在读取源文件…'}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function CamImportModal({
-  url,
-  busy,
-  error,
-  onUrlChange,
-  onSubmit,
-  onClose,
-}: {
-  url: string;
-  busy: boolean;
-  error: string | null;
-  onUrlChange: (v: string) => void;
-  onSubmit: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
-      <div className="w-[28rem] rounded-lg bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-2 text-base font-semibold text-neutral-800">从扫描全能王导入</h2>
-        <p className="mb-3 text-xs text-neutral-500">
-          粘贴扫描全能王的分享链接（link.camscanner.com 或 camscanner.com/s/…），自动下载并导入全部页面。
-        </p>
-        <input
-          autoFocus
-          type="url"
-          value={url}
-          onChange={(e) => onUrlChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !busy) onSubmit();
-          }}
-          placeholder="https://link.camscanner.com/…"
-          className="mb-3 w-full rounded border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-        />
-        {error !== null && <p className="mb-3 text-sm text-red-600">{error}</p>}
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            className="rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100"
-            onClick={onClose}
-            disabled={busy}
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-            onClick={onSubmit}
-            disabled={busy || url.trim() === ''}
-          >
-            {busy ? '下载并导入中…' : '导入'}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
